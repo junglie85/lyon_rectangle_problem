@@ -29,7 +29,7 @@ fn main() {
     env_logger::init();
 
     let num_instances: u32 = 1;
-    let tolerance = 0.02;
+    let tolerance = 0.00002;
 
     let mut geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
 
@@ -37,7 +37,7 @@ fn main() {
     let mut stroke_tess = StrokeTessellator::new();
 
     // let rect = Box2D::new(point(0.0, 0.0), point(50.0, 50.0));
-    let rect = Box2D::new(point(0.0, -0.0), point(0.125, -0.125));
+    let rect = Box2D::new(point(0.0, 0.0), point(0.125, 0.125));
     let mut builder = Path::builder();
     builder.add_rectangle(&rect, Winding::Negative);
     let path = builder.build();
@@ -324,7 +324,7 @@ impl FillVertexConstructor<GpuVertex> for WithId {
     fn new_vertex(&mut self, vertex: tessellation::FillVertex) -> GpuVertex {
         let p = vertex.position().to_array();
         GpuVertex {
-            position: [p[0], p[1], 0.1],
+            position: [p[0], -p[1], 0.1],
             color: [1.0, 1.0, 1.0, 1.0],
         }
     }
@@ -333,11 +333,11 @@ impl FillVertexConstructor<GpuVertex> for WithId {
 // TODO: We want the color, ZIndex and the width passed in.
 impl StrokeVertexConstructor<GpuVertex> for WithId {
     fn new_vertex(&mut self, vertex: tessellation::StrokeVertex) -> GpuVertex {
-        let stroke_width = 0.01;
+        let stroke_width = 0.00001;
         let p = (vertex.position() + vertex.normal() * stroke_width).to_array();
         let z_index = 0.2;
         GpuVertex {
-            position: [p[0], p[1], z_index],
+            position: [p[0], -p[1], z_index],
             color: [0.0, 0.0, 0.0, 1.0],
         }
     }
