@@ -1,4 +1,5 @@
 use futures::executor::block_on;
+use glam::Mat4;
 use lyon::math::*;
 use lyon::path::{Path, Winding};
 use lyon::tessellation;
@@ -12,6 +13,58 @@ use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEve
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
+#[allow(dead_code)]
+pub struct Camera {
+    width: f32,
+    height: f32,
+    view: Mat4,
+    projection: Mat4,
+}
+
+impl Camera {
+    pub fn new(width: f32, height: f32) -> Self {
+        let projection = glam::Mat4::orthographic_lh(0.0, width, 0.0, height, -1.0, 1.0);
+
+        Self {
+            width,
+            height,
+            view: Mat4::IDENTITY,
+            projection,
+        }
+    }
+
+    pub fn resize(&mut self, width: f32, height: f32) {
+        let projection = glam::Mat4::orthographic_lh(0.0, width, 0.0, height, -1.0, 1.0);
+
+        self.width = width;
+        self.height = height;
+        self.projection = projection;
+    }
+
+    pub fn get_view(&self) -> Mat4 {
+        // Just use some jankey values for look at for now.
+        let view = glam::Mat4::look_at_lh(
+            glam::Vec3::new(-200.0, -200.0, -1.0),
+            glam::Vec3::new(-200.0, -200.0, 0.0),
+            glam::Vec3::Y,
+        );
+
+        // let view = glam::Mat4::look_at_lh(
+        //     glam::Vec3::new(0.0, 0.0, -1.0),
+        //     glam::Vec3::new(0.0, 0.0, 0.0),
+        //     glam::Vec3::Y,
+        // );
+
+        view
+        // glam::Mat4::IDENTITY
+    }
+
+    pub fn get_projection(&self) -> Mat4 {
+        self.projection
+        // glam::Mat4::IDENTITY
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct GpuVertex {
@@ -22,27 +75,33 @@ struct GpuVertex {
 unsafe impl bytemuck::Pod for GpuVertex {}
 unsafe impl bytemuck::Zeroable for GpuVertex {}
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ViewProjectionUniform {
+    pub(crate) view: [[f32; 4]; 4],
+    pub(crate) projection: [[f32; 4]; 4],
+}
+
+unsafe impl bytemuck::Pod for ViewProjectionUniform {}
+unsafe impl bytemuck::Zeroable for ViewProjectionUniform {}
+
 const DEFAULT_WINDOW_WIDTH: f32 = 800.0;
 const DEFAULT_WINDOW_HEIGHT: f32 = 800.0;
 
 fn main() {
     env_logger::init();
 
-    let num_instances: u32 = 1;
-    let tolerance = 0.00002;
+    let tolerance = 0.02;
 
     let mut geometry: VertexBuffers<GpuVertex, u16> = VertexBuffers::new();
 
     let mut fill_tess = FillTessellator::new();
     let mut stroke_tess = StrokeTessellator::new();
 
-    // let rect = Box2D::new(point(0.0, 0.0), point(50.0, 50.0));
-    let rect = Box2D::new(point(0.0, 0.0), point(0.125, 0.125));
+    let rect = Box2D::new(point(0.0, 0.0), point(200.0, 200.0));
     let mut builder = Path::builder();
     builder.add_rectangle(&rect, Winding::Negative);
     let path = builder.build();
-
-    dbg!(&path);
 
     fill_tess
         .tessellate_path(
@@ -52,7 +111,7 @@ fn main() {
         )
         .unwrap();
 
-    let fill_range = 0..(geometry.indices.len() as u32);
+    let geometry_fill_range = 0..(geometry.indices.len() as u32);
 
     stroke_tess
         .tessellate_path(
@@ -62,7 +121,9 @@ fn main() {
         )
         .unwrap();
 
-    let stroke_range = fill_range.end..(geometry.indices.len() as u32);
+    let geometry_stroke_range = geometry_fill_range.end..(geometry.indices.len() as u32);
+
+    dbg!(&geometry);
 
     let mut scene = SceneParams {
         window_size: PhysicalSize::new(DEFAULT_WINDOW_WIDTH as u32, DEFAULT_WINDOW_HEIGHT as u32),
@@ -98,36 +159,65 @@ fn main() {
     ))
     .unwrap();
 
-    dbg!(&geometry);
+    let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("View Projection Uniform Buffer"),
+        size: std::mem::size_of::<ViewProjectionUniform>() as wgpu::BufferAddress,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
 
-    let vbo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    let uniforms_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Uniforms Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+    let uniforms_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Uniforms Bind Group"),
+        layout: &uniforms_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: uniforms.as_entire_binding(),
+        }],
+    });
+
+    let geometry_vbo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
         contents: bytemuck::cast_slice(&geometry.vertices),
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let ibo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    let geometry_ibo = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: None,
         contents: bytemuck::cast_slice(&geometry.indices),
         usage: wgpu::BufferUsages::INDEX,
     });
 
-    let vs_module = &device.create_shader_module(wgpu::ShaderModuleDescriptor {
+    let geometry_vs_module = &device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Geometry vs"),
         source: wgpu::ShaderSource::Wgsl(include_str!("./../shaders/geometry.wgsl").into()),
     });
-    let fs_module = &device.create_shader_module(wgpu::ShaderModuleDescriptor {
+    let geometry_fs_module = &device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Geometry fs"),
         source: wgpu::ShaderSource::Wgsl(include_str!("./../shaders/geometry.wgsl").into()),
     });
 
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        bind_group_layouts: &[],
+    let geometry_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        bind_group_layouts: &[&uniforms_bind_group_layout],
         push_constant_ranges: &[],
-        label: None,
+        label: Some("Geometry Pipeline Layout"),
     });
 
-    let depth_stencil_state = Some(wgpu::DepthStencilState {
+    let geometry_depth_stencil_state = Some(wgpu::DepthStencilState {
         format: wgpu::TextureFormat::Depth32Float,
         depth_write_enabled: true,
         depth_compare: wgpu::CompareFunction::Greater,
@@ -140,11 +230,11 @@ fn main() {
         bias: wgpu::DepthBiasState::default(),
     });
 
-    let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: None,
-        layout: Some(&pipeline_layout),
+    let geometry_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("Geometry Pipeline"),
+        layout: Some(&geometry_pipeline_layout),
         vertex: wgpu::VertexState {
-            module: &vs_module,
+            module: &geometry_vs_module,
             entry_point: "vs_main",
             buffers: &[wgpu::VertexBufferLayout {
                 array_stride: std::mem::size_of::<GpuVertex>() as u64,
@@ -164,7 +254,7 @@ fn main() {
             }],
         },
         fragment: Some(wgpu::FragmentState {
-            module: &fs_module,
+            module: &geometry_fs_module,
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
                 format: wgpu::TextureFormat::Bgra8Unorm,
@@ -181,7 +271,7 @@ fn main() {
             conservative: false,
             unclipped_depth: false,
         },
-        depth_stencil: depth_stencil_state.clone(),
+        depth_stencil: geometry_depth_stencil_state.clone(),
         multisample: wgpu::MultisampleState {
             count: 1,
             mask: !0,
@@ -204,6 +294,8 @@ fn main() {
 
     let mut depth_texture_view = None;
 
+    let mut camera = Camera::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
     let mut frame_count: u32 = 0;
@@ -222,6 +314,8 @@ fn main() {
             surface_desc.width = physical.width;
             surface_desc.height = physical.height;
             surface.configure(&device, &surface_desc);
+
+            camera.resize(physical.width as f32, physical.height as f32);
 
             let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Depth texture"),
@@ -263,6 +357,28 @@ fn main() {
             label: Some("Encoder"),
         });
 
+        let vp = ViewProjectionUniform {
+            view: camera.get_view().to_cols_array_2d(),
+            projection: camera.get_projection().to_cols_array_2d(),
+        };
+
+        let vp_buffer = wgpu::util::DeviceExt::create_buffer_init(
+            &device,
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("View Projection Uniform Buffer"),
+                contents: bytemuck::cast_slice(&[vp]),
+                usage: wgpu::BufferUsages::COPY_SRC,
+            },
+        );
+
+        encoder.copy_buffer_to_buffer(
+            &vp_buffer,
+            0,
+            &uniforms,
+            0,
+            std::mem::size_of::<ViewProjectionUniform>() as wgpu::BufferAddress,
+        );
+
         {
             let color_attachment = wgpu::RenderPassColorAttachment {
                 view: &frame_view,
@@ -294,12 +410,13 @@ fn main() {
                 }),
             });
 
-            pass.set_pipeline(&render_pipeline);
-            pass.set_index_buffer(ibo.slice(..), wgpu::IndexFormat::Uint16);
-            pass.set_vertex_buffer(0, vbo.slice(..));
+            pass.set_pipeline(&geometry_render_pipeline);
+            pass.set_bind_group(0, &uniforms_bind_group, &[]);
+            pass.set_index_buffer(geometry_ibo.slice(..), wgpu::IndexFormat::Uint16);
+            pass.set_vertex_buffer(0, geometry_vbo.slice(..));
 
-            pass.draw_indexed(fill_range.clone(), 0, 0..(num_instances as u32));
-            pass.draw_indexed(stroke_range.clone(), 0, 0..1);
+            pass.draw_indexed(geometry_fill_range.clone(), 0, 0..1);
+            pass.draw_indexed(geometry_stroke_range.clone(), 0, 0..1);
         }
 
         queue.submit(Some(encoder.finish()));
@@ -319,12 +436,21 @@ fn main() {
 /// tessellators and add a shape id.
 pub struct WithId;
 
+// var transformed_pos = world_pos * vec3<f32>(globals.zoom / (0.5 * globals.resolution.x), globals.zoom / (0.5 * globals.resolution.y), 1.0);
 // TODO: Pass in color and ZIndex
 impl FillVertexConstructor<GpuVertex> for WithId {
     fn new_vertex(&mut self, vertex: tessellation::FillVertex) -> GpuVertex {
+        // let global_zoom = 1.0;
+        // let global_resolution = [DEFAULT_WINDOW_WIDTH, -DEFAULT_WINDOW_HEIGHT];
         let p = vertex.position().to_array();
+        // let p = [
+        //     p[0] * (global_zoom / (0.5 * global_resolution[0])),
+        //     p[1] * (global_zoom / (0.5 * global_resolution[1])),
+        // ];
+        // let z_index = 1.0;
+        let z_index = 0.1;
         GpuVertex {
-            position: [p[0], -p[1], 0.1],
+            position: [p[0], p[1], z_index],
             color: [1.0, 1.0, 1.0, 1.0],
         }
     }
@@ -333,52 +459,22 @@ impl FillVertexConstructor<GpuVertex> for WithId {
 // TODO: We want the color, ZIndex and the width passed in.
 impl StrokeVertexConstructor<GpuVertex> for WithId {
     fn new_vertex(&mut self, vertex: tessellation::StrokeVertex) -> GpuVertex {
-        let stroke_width = 0.00001;
+        // let global_zoom = 1.0;
+        // let global_resolution = [DEFAULT_WINDOW_WIDTH, -DEFAULT_WINDOW_HEIGHT];
+        let stroke_width = 1.0;
         let p = (vertex.position() + vertex.normal() * stroke_width).to_array();
-        let z_index = 0.2;
+        // let p = [
+        //     p[0] * (global_zoom / (0.5 * global_resolution[0])),
+        //     p[1] * (global_zoom / (0.5 * global_resolution[1])),
+        // ];
+        let z_index = 2.0;
+        // let z_index = 0.2;
         GpuVertex {
-            position: [p[0], -p[1], z_index],
+            position: [p[0], p[1], z_index],
             color: [0.0, 0.0, 0.0, 1.0],
         }
     }
 }
-
-// // var transformed_pos = world_pos * vec3<f32>(globals.zoom / (0.5 * globals.resolution.x), globals.zoom / (0.5 * globals.resolution.y), 1.0);
-// // TODO: Pass in color and ZIndex
-// impl FillVertexConstructor<GpuVertex> for WithId {
-//     fn new_vertex(&mut self, vertex: tessellation::FillVertex) -> GpuVertex {
-//         let global_zoom = 1.0;
-//         let global_resolution = [DEFAULT_WINDOW_WIDTH, -DEFAULT_WINDOW_HEIGHT];
-//         let p = vertex.position().to_array();
-//         let p = [
-//             p[0] * (global_zoom / (0.5 * global_resolution[0])),
-//             p[1] * (global_zoom / (0.5 * global_resolution[1])),
-//         ];
-//         GpuVertex {
-//             position: [p[0], p[1], 0.1],
-//             color: [1.0, 1.0, 1.0, 1.0],
-//         }
-//     }
-// }
-
-// // TODO: We want the color, ZIndex and the width passed in.
-// impl StrokeVertexConstructor<GpuVertex> for WithId {
-//     fn new_vertex(&mut self, vertex: tessellation::StrokeVertex) -> GpuVertex {
-//         let global_zoom = 1.0;
-//         let global_resolution = [DEFAULT_WINDOW_WIDTH, -DEFAULT_WINDOW_HEIGHT];
-//         let stroke_width = 1.0;
-//         let p = (vertex.position() + vertex.normal() * stroke_width).to_array();
-//         let p = [
-//             p[0] * (global_zoom / (0.5 * global_resolution[0])),
-//             p[1] * (global_zoom / (0.5 * global_resolution[1])),
-//         ];
-//         let z_index = 0.2;
-//         GpuVertex {
-//             position: [p[0], p[1], z_index],
-//             color: [0.0, 0.0, 0.0, 1.0],
-//         }
-//     }
-// }
 
 struct SceneParams {
     window_size: PhysicalSize<u32>,
