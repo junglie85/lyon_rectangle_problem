@@ -87,8 +87,34 @@ const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
 
+fn create_multisampled_framebuffer(
+    device: &wgpu::Device,
+    surface_config: &wgpu::SurfaceConfiguration,
+    sample_count: u32,
+) -> wgpu::TextureView {
+    let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
+        label: Some("multisampled frame descriptor"),
+        size: wgpu::Extent3d {
+            width: surface_config.width,
+            height: surface_config.height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count,
+        dimension: wgpu::TextureDimension::D2,
+        format: surface_config.format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+    };
+
+    device
+        .create_texture(multisampled_frame_descriptor)
+        .create_view(&wgpu::TextureViewDescriptor::default())
+}
+
 fn main() {
     env_logger::init();
+
+    let sample_count = 4; // 1 = disable MSAA.
 
     let tolerance = 0.02;
 
@@ -257,7 +283,7 @@ fn main() {
             module: &geometry_fs_module,
             entry_point: "fs_main",
             targets: &[Some(wgpu::ColorTargetState {
-                format: wgpu::TextureFormat::Bgra8Unorm,
+                format: wgpu::TextureFormat::Bgra8UnormSrgb,
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
@@ -273,7 +299,7 @@ fn main() {
         },
         depth_stencil: geometry_depth_stencil_state.clone(),
         multisample: wgpu::MultisampleState {
-            count: 1,
+            count: sample_count,
             mask: !0,
             alpha_to_coverage_enabled: false,
         },
@@ -282,15 +308,17 @@ fn main() {
 
     let size = window.inner_size();
 
-    let mut surface_desc = wgpu::SurfaceConfiguration {
+    let mut surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format: wgpu::TextureFormat::Bgra8Unorm,
+        format: wgpu::TextureFormat::Bgra8UnormSrgb,
         width: size.width,
         height: size.height,
         present_mode: wgpu::PresentMode::AutoVsync,
     };
 
-    surface.configure(&device, &surface_desc);
+    surface.configure(&device, &surface_config);
+
+    let mut multisampled_render_target = None;
 
     let mut depth_texture_view = None;
 
@@ -310,7 +338,7 @@ fn main() {
     window.request_redraw();
 
     event_loop.run(move |event, _, control_flow| {
-        if !update_inputs(event, &window, control_flow, &mut scene) {
+        if !process_event(event, &window, control_flow, &mut scene) {
             // keep polling inputs.
             return;
         }
@@ -318,21 +346,21 @@ fn main() {
         if scene.size_changed {
             scene.size_changed = false;
             let physical = scene.window_size;
-            surface_desc.width = physical.width;
-            surface_desc.height = physical.height;
-            surface.configure(&device, &surface_desc);
+            surface_config.width = physical.width;
+            surface_config.height = physical.height;
+            surface.configure(&device, &surface_config);
 
             camera.resize(physical.width as f32, physical.height as f32);
 
             let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Depth texture"),
                 size: wgpu::Extent3d {
-                    width: surface_desc.width,
-                    height: surface_desc.height,
+                    width: surface_config.width,
+                    height: surface_config.height,
                     depth_or_array_layers: 1,
                 },
                 mip_level_count: 1,
-                sample_count: 1,
+                sample_count,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Depth32Float,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -340,6 +368,16 @@ fn main() {
 
             depth_texture_view =
                 Some(depth_texture.create_view(&wgpu::TextureViewDescriptor::default()));
+
+            multisampled_render_target = if sample_count > 1 {
+                Some(create_multisampled_framebuffer(
+                    &device,
+                    &surface_config,
+                    sample_count,
+                ))
+            } else {
+                None
+            };
         }
 
         if !scene.render {
@@ -356,7 +394,7 @@ fn main() {
             }
         };
 
-        let frame_view = frame
+        let render_target = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -372,13 +410,24 @@ fn main() {
         queue.write_buffer(&globals_ubo, 0, bytemuck::cast_slice(&[frame_globals]));
 
         {
-            let color_attachment = wgpu::RenderPassColorAttachment {
-                view: &frame_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(clear_color),
-                    store: true,
-                },
-                resolve_target: None,
+            let color_attachment = if let Some(msaa_target) = &multisampled_render_target {
+                wgpu::RenderPassColorAttachment {
+                    view: msaa_target,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_color),
+                        store: true,
+                    },
+                    resolve_target: Some(&render_target),
+                }
+            } else {
+                wgpu::RenderPassColorAttachment {
+                    view: &render_target,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_color),
+                        store: true,
+                    },
+                    resolve_target: None,
+                }
             };
 
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -457,7 +506,7 @@ struct SceneParams {
     render: bool,
 }
 
-fn update_inputs(
+fn process_event(
     event: Event<()>,
     window: &Window,
     control_flow: &mut ControlFlow,
