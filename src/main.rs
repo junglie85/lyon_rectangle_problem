@@ -92,26 +92,24 @@ unsafe impl bytemuck::Zeroable for Globals {}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Primitive {
-    translate: [f32; 2],
-    rotate: f32,
-    scale: f32,
     color: [f32; 4],
+    translate: [f32; 2],
+    scale: [f32; 2],
+    rotate: f32,
     z_index: i32,
     width: f32,
     _pad_1: i32,
-    _pad_2: i32,
 }
 
 impl Primitive {
     const DEFAULT: Primitive = Primitive {
-        translate: [0.0; 2],
-        rotate: 0.0,
-        scale: 1.0,
         color: [1.0; 4],
+        translate: [0.0; 2],
+        scale: [1.0; 2],
+        rotate: 0.0,
         z_index: 0,
         width: 0.0,
         _pad_1: 0,
-        _pad_2: 0,
     };
 }
 
@@ -146,7 +144,7 @@ fn main() {
     env_logger::init();
 
     let sample_count = 4; // 1 = disable MSAA.
-    let instance_count = 2;
+    let instance_count = 3;
 
     let tolerance = 0.02;
 
@@ -158,7 +156,7 @@ fn main() {
     let mut fill_tess = FillTessellator::new();
     let mut stroke_tess = StrokeTessellator::new();
 
-    let rect = Box2D::new(point(0.0, 0.0), point(200.0, 200.0));
+    let rect = Box2D::new(point(0.0, 0.0), point(1.0, 1.0));
     let mut builder = Path::builder();
     builder.add_rectangle(&rect, Winding::Positive);
     let path = builder.build();
@@ -176,42 +174,63 @@ fn main() {
     stroke_tess
         .tessellate_path(
             &path,
-            &StrokeOptions::tolerance(tolerance),
+            &StrokeOptions::tolerance(tolerance).with_line_width(50.0),
             &mut BuffersBuilder::new(&mut geometry, VertexCtor(stroke_id)).with_inverted_winding(),
         )
         .unwrap();
 
     let geometry_stroke_range = geometry_fill_range.end..(geometry.indices.len() as u32);
 
+    dbg!(geometry.indices.len());
+    dbg!(&geometry_fill_range);
+    dbg!(&geometry_stroke_range);
+
     let mut primitives = vec![Primitive::DEFAULT; PRIMITIVES_BUFFER_LEN];
     // Bottom left square
     primitives[stroke_id as usize] = Primitive {
         color: [0.0, 0.0, 0.0, 1.0],
+        scale: [200.0, 200.0],
         z_index: 2,
-        width: 1.0,
+        width: 0.5,
         ..Primitive::DEFAULT
     };
     primitives[fill_id as usize] = Primitive {
         color: [1.0, 1.0, 1.0, 1.0],
+        scale: [200.0, 200.0],
         z_index: 1,
         ..Primitive::DEFAULT
     };
 
     // Top right rectangle
     primitives[stroke_id as usize + 2] = Primitive {
+        color: [1.0, 0.0, 0.0, 1.0],
         translate: [400.0, 400.0],
-        rotate: 0.0,
-        scale: 1.0,
-        color: [0.0, 1.0, 0.0, 1.0],
+        scale: [300.0, 200.0],
         z_index: 2,
-        width: 1.0,
+        width: 2.5,
         ..Primitive::DEFAULT
     };
     primitives[fill_id as usize + 2] = Primitive {
+        color: [0.0, 1.0, 0.0, 1.0],
         translate: [400.0, 400.0],
-        rotate: 0.0,
-        scale: 1.0,
-        color: [1.0, 0.0, 1.0, 1.0],
+        scale: [300.0, 200.0],
+        z_index: 1,
+        ..Primitive::DEFAULT
+    };
+
+    // Thingy rectangle
+    primitives[stroke_id as usize + 4] = Primitive {
+        color: [1.0, 0.0, 0.0, 1.0],
+        translate: [0.0, 0.0],
+        scale: [0.0, 0.0],
+        z_index: 2,
+        width: 0.0,
+        ..Primitive::DEFAULT
+    };
+    primitives[fill_id as usize + 4] = Primitive {
+        color: [1.0, 1.0, 1.0, 1.0],
+        translate: [397.5, 390.0],
+        scale: [5.0, 10.0],
         z_index: 1,
         ..Primitive::DEFAULT
     };
