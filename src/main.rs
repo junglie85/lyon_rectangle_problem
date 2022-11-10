@@ -146,7 +146,7 @@ fn main() {
     env_logger::init();
 
     let sample_count = 4; // 1 = disable MSAA.
-    let instance_count = 1;
+    let instance_count = 2;
 
     let tolerance = 0.02;
 
@@ -184,6 +184,7 @@ fn main() {
     let geometry_stroke_range = geometry_fill_range.end..(geometry.indices.len() as u32);
 
     let mut primitives = vec![Primitive::DEFAULT; PRIMITIVES_BUFFER_LEN];
+    // Bottom left square
     primitives[stroke_id as usize] = Primitive {
         color: [0.0, 0.0, 0.0, 1.0],
         z_index: 2,
@@ -192,6 +193,25 @@ fn main() {
     };
     primitives[fill_id as usize] = Primitive {
         color: [1.0, 1.0, 1.0, 1.0],
+        z_index: 1,
+        ..Primitive::DEFAULT
+    };
+
+    // Top right rectangle
+    primitives[stroke_id as usize + 2] = Primitive {
+        translate: [400.0, 400.0],
+        rotate: 0.0,
+        scale: 1.0,
+        color: [0.0, 1.0, 0.0, 1.0],
+        z_index: 2,
+        width: 1.0,
+        ..Primitive::DEFAULT
+    };
+    primitives[fill_id as usize + 2] = Primitive {
+        translate: [400.0, 400.0],
+        rotate: 0.0,
+        scale: 1.0,
+        color: [1.0, 0.0, 1.0, 1.0],
         z_index: 1,
         ..Primitive::DEFAULT
     };
