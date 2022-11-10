@@ -6,6 +6,9 @@ struct Globals {
 };
 
 struct Primitive {
+    translate: vec2<f32>,
+    rotate: f32,
+    scale: f32,
     color: vec4<f32>,
     z_index: i32,
     width: f32,
@@ -34,12 +37,17 @@ fn vs_main(
 ) -> VertexOutput {
     var primitive: Primitive = primitives.primitives[primitive_id + instance_idx];
 
-    var local_position = position + normal * primitive.width;
+    var rotation = mat2x2<f32>(
+        vec2<f32>(cos(primitive.rotate), -sin(primitive.rotate)),
+        vec2<f32>(sin(primitive.rotate), cos(primitive.rotate))
+    );
 
-    var world_position = globals.projection * globals.view * vec4<f32>(local_position, 0.0, 1.0);
+    var local_position = (position * primitive.scale + normal * primitive.width) * rotation;
+    var world_position = local_position + primitive.translate;
+    var transformed_position = globals.projection * globals.view * vec4<f32>(world_position, 0.0, 1.0);
     
     var z = f32(primitive.z_index) / 1000.0;
-    var clip_position = vec4<f32>(world_position.x, world_position.y, z, 1.0);
+    var clip_position = vec4<f32>(transformed_position.x, transformed_position.y, z, 1.0);
     
     return VertexOutput(primitive.color, clip_position);
 }
