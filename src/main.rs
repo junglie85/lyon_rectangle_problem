@@ -1,5 +1,5 @@
 use futures::executor::block_on;
-use renderer::{Bananas, Globals, Primitive, Renderer, PRIMITIVES_BUFFER_LEN};
+use renderer::{Bananas, Primitive, Renderer, PRIMITIVES_BUFFER_LEN};
 use std::time::{Duration, Instant};
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
@@ -125,101 +125,14 @@ fn main() {
 
         scene.render = false;
 
-        let frame = match bananas.surface.get_current_texture() {
-            Ok(texture) => texture,
-            Err(e) => {
-                println!("swapchain error: {:?}", e);
-                return;
-            }
+        let clear_color = wgpu::Color {
+            r: 0.1,
+            g: 0.2,
+            b: 0.3,
+            a: 1.0,
         };
 
-        let render_target = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = bananas
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("encoder"),
-            });
-
-        let globals = Globals {
-            view: camera.get_view().to_cols_array_2d(),
-            projection: camera.get_projection().to_cols_array_2d(),
-        };
-
-        bananas
-            .queue
-            .write_buffer(&renderer.globals_ubo, 0, bytemuck::cast_slice(&[globals]));
-        bananas.queue.write_buffer(
-            &renderer.primitives_ubo,
-            0,
-            bytemuck::cast_slice(&primitives),
-        );
-
-        {
-            let clear_color = wgpu::Color {
-                r: 0.1,
-                g: 0.2,
-                b: 0.3,
-                a: 1.0,
-            };
-
-            let color_attachment = if let Some(msaa_target) = &renderer.multisampled_render_target {
-                wgpu::RenderPassColorAttachment {
-                    view: msaa_target,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
-                        store: true,
-                    },
-                    resolve_target: Some(&render_target),
-                }
-            } else {
-                wgpu::RenderPassColorAttachment {
-                    view: &render_target,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
-                        store: true,
-                    },
-                    resolve_target: None,
-                }
-            };
-
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(color_attachment)],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: renderer.depth_texture_view.as_ref().unwrap(),
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0.0),
-                        store: true,
-                    }),
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0),
-                        store: true,
-                    }),
-                }),
-            });
-
-            pass.set_pipeline(&renderer.geometry_pipeline);
-            pass.set_bind_group(0, &renderer.globals_bind_group, &[]);
-            pass.set_index_buffer(renderer.geometry_ibo.slice(..), wgpu::IndexFormat::Uint16);
-            pass.set_vertex_buffer(0, renderer.geometry_vbo.slice(..));
-
-            pass.draw_indexed(
-                renderer.geometry_fill_range.clone(),
-                0,
-                0..(renderer.instance_count as u32),
-            );
-            pass.draw_indexed(
-                renderer.geometry_stroke_range.clone(),
-                0,
-                0..(renderer.instance_count as u32),
-            );
-        }
-
-        bananas.queue.submit(Some(encoder.finish()));
-        frame.present();
+        renderer.render(&bananas, &camera, clear_color, &primitives);
 
         frame_count += 1;
         let now = Instant::now();

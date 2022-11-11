@@ -8,8 +8,10 @@ use lyon::{
     },
     path::{Path, Winding},
 };
-use wgpu::{util::DeviceExt, BindGroup, Buffer, RenderPipeline, TextureView};
+use wgpu::{util::DeviceExt, BindGroup, Buffer, Color, RenderPipeline, TextureView};
 use winit::window::Window;
+
+use crate::camera::Camera;
 
 pub const PRIMITIVES_BUFFER_LEN: usize = 256;
 
@@ -48,9 +50,9 @@ impl StrokeVertexConstructor<Vertex> for VertexCtor {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct Globals {
-    pub(crate) view: [[f32; 4]; 4],
-    pub(crate) projection: [[f32; 4]; 4],
+struct Globals {
+    view: [[f32; 4]; 4],
+    projection: [[f32; 4]; 4],
 }
 
 unsafe impl bytemuck::Pod for Globals {}
@@ -423,6 +425,101 @@ impl Renderer {
         } else {
             None
         };
+    }
+
+    pub fn render(
+        &self,
+        bananas: &Bananas,
+        camera: &Camera,
+        clear_color: Color,
+        primitives: &[Primitive],
+    ) {
+        let globals = Globals {
+            view: camera.get_view().to_cols_array_2d(),
+            projection: camera.get_projection().to_cols_array_2d(),
+        };
+
+        bananas
+            .queue
+            .write_buffer(&self.globals_ubo, 0, bytemuck::cast_slice(&[globals]));
+        bananas
+            .queue
+            .write_buffer(&self.primitives_ubo, 0, bytemuck::cast_slice(primitives));
+
+        let frame = match bananas.surface.get_current_texture() {
+            Ok(texture) => texture,
+            Err(e) => {
+                println!("swapchain error: {:?}", e);
+                return;
+            }
+        };
+
+        let mut encoder = bananas
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("encoder"),
+            });
+
+        let render_target = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let color_attachment = if let Some(msaa_target) = &self.multisampled_render_target {
+            wgpu::RenderPassColorAttachment {
+                view: msaa_target,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear_color),
+                    store: true,
+                },
+                resolve_target: Some(&render_target),
+            }
+        } else {
+            wgpu::RenderPassColorAttachment {
+                view: &render_target,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear_color),
+                    store: true,
+                },
+                resolve_target: None,
+            }
+        };
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(color_attachment)],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: self.depth_texture_view.as_ref().unwrap(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0.0),
+                        store: true,
+                    }),
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0),
+                        store: true,
+                    }),
+                }),
+            });
+
+            pass.set_pipeline(&self.geometry_pipeline);
+            pass.set_bind_group(0, &self.globals_bind_group, &[]);
+            pass.set_index_buffer(self.geometry_ibo.slice(..), wgpu::IndexFormat::Uint16);
+            pass.set_vertex_buffer(0, self.geometry_vbo.slice(..));
+
+            pass.draw_indexed(
+                self.geometry_fill_range.clone(),
+                0,
+                0..(self.instance_count as u32),
+            );
+            pass.draw_indexed(
+                self.geometry_stroke_range.clone(),
+                0,
+                0..(self.instance_count as u32),
+            );
+        }
+
+        bananas.queue.submit(Some(encoder.finish()));
+        frame.present();
     }
 
     pub fn create_multisampled_framebuffer(
