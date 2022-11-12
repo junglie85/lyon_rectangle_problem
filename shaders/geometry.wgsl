@@ -9,10 +9,13 @@ struct Primitive {
     color: vec4<f32>,
     translate: vec2<f32>,
     scale: vec2<f32>,
+    origin: vec2<f32>,
     rotate: f32,
     z_index: i32,
     width: f32,
     pad_1: i32,
+    pad_2: i32,
+    pad_3: i32,
 };
 
 struct Primitives {
@@ -43,8 +46,13 @@ fn vs_main(
         vec2<f32>(sin(primitive.rotate), cos(primitive.rotate))
     );
 
-    var local_position = (position * primitive.scale + normal * primitive.width) * rotation;
-    var world_position = local_position + primitive.translate;
+    var local_position = (position * primitive.scale + normal * primitive.width)- primitive.origin;
+    
+    // local_position = local_position - primitive.origin;
+    local_position = local_position * rotation;
+    // local_position = local_position + primitive.origin;
+    
+    var world_position = local_position + primitive.translate ;
     var transformed_position = globals.projection * globals.view * vec4<f32>(world_position, 0.0, 1.0);
     
     var z = f32(primitive.z_index) / 1000.0;

@@ -1,5 +1,6 @@
 use futures::executor::block_on;
-use renderer::{Bananas, Primitive, Renderer, PRIMITIVES_BUFFER_LEN};
+use renderer::{Bananas, Renderer};
+use shape::Rect;
 use std::time::{Duration, Instant};
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
@@ -9,11 +10,15 @@ use winit::window::{Window, WindowBuilder};
 use crate::camera::Camera;
 
 const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
-pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
-pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
+// pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
+// pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
+
+pub const DEFAULT_WINDOW_WIDTH: f32 = 400.0;
+pub const DEFAULT_WINDOW_HEIGHT: f32 = 400.0;
 
 mod camera;
 mod renderer;
+mod shape;
 
 fn main() {
     env_logger::init();
@@ -68,55 +73,35 @@ fn main() {
         }
 
         //////////////////// UPDATE ////////////////////
-        let mut primitives = vec![Primitive::default(); PRIMITIVES_BUFFER_LEN];
-        // Bottom left square
-        primitives[renderer.stroke_id as usize] = Primitive {
-            color: [0.0, 0.0, 0.0, 1.0],
-            scale: [200.0, 200.0],
-            z_index: 2,
-            width: 0.5,
-            ..Primitive::default()
-        };
-        primitives[renderer.fill_id as usize] = Primitive {
-            color: [1.0, 1.0, 1.0, 1.0],
-            scale: [200.0, 200.0],
-            z_index: 1,
-            ..Primitive::default()
-        };
+        let mut bottom_left = Rect::default();
+        bottom_left.position = [200.0, 200.0];
+        bottom_left.size = [200.0, 200.0];
+        bottom_left.rotation = 30.0;
+        bottom_left.origin = [100.0, 100.0];
+        bottom_left.z_index = 1;
+        bottom_left.fill_color = [1.0, 1.0, 1.0, 1.0];
+        bottom_left.stroke_width = 1.0;
+        bottom_left.stroke_color = [0.0, 0.0, 0.0, 1.0];
 
-        // Top right rectangle
-        primitives[renderer.stroke_id as usize + 2] = Primitive {
-            color: [1.0, 0.0, 0.0, 1.0],
-            translate: [400.0, 400.0],
-            scale: [300.0, 200.0],
-            z_index: 2,
-            width: 2.5,
-            ..Primitive::default()
-        };
-        primitives[renderer.fill_id as usize + 2] = Primitive {
-            color: [0.0, 1.0, 0.0, 1.0],
-            translate: [400.0, 400.0],
-            scale: [300.0, 200.0],
-            z_index: 1,
-            ..Primitive::default()
-        };
+        let mut top_right = Rect::default();
+        top_right.position = [400.0, 400.0];
+        top_right.size = [300.0, 200.0];
+        top_right.rotation = 0.0;
+        top_right.origin = [0.0, 0.0];
+        top_right.z_index = 1;
+        top_right.fill_color = [0.0, 1.0, 0.0, 1.0];
+        top_right.stroke_width = 5.0;
+        top_right.stroke_color = [1.0, 0.0, 0.0, 1.0];
 
-        // Thingy rectangle
-        primitives[renderer.stroke_id as usize + 4] = Primitive {
-            color: [1.0, 0.0, 0.0, 1.0],
-            translate: [0.0, 0.0],
-            scale: [0.0, 0.0],
-            z_index: 2,
-            width: 0.0,
-            ..Primitive::default()
-        };
-        primitives[renderer.fill_id as usize + 4] = Primitive {
-            color: [1.0, 1.0, 1.0, 1.0],
-            translate: [397.5, 390.0],
-            scale: [5.0, 10.0],
-            z_index: 1,
-            ..Primitive::default()
-        };
+        let mut pixel_measure = Rect::default();
+        pixel_measure.position = [397.5, 390.0];
+        pixel_measure.size = [5.0, 10.0];
+        pixel_measure.rotation = 0.0;
+        pixel_measure.origin = [0.0, 0.0];
+        pixel_measure.z_index = 1;
+        pixel_measure.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure.stroke_width = 0.0;
+        pixel_measure.stroke_color = [1.0, 1.0, 1.0, 1.0];
 
         //////////////////// RENDER ////////////////////
         if !scene.render {
@@ -131,6 +116,14 @@ fn main() {
             b: 0.3,
             a: 1.0,
         };
+
+        renderer.begin_scene();
+
+        renderer.draw_rect(&bottom_left);
+        renderer.draw_rect(&top_right);
+        renderer.draw_rect(&pixel_measure);
+
+        let primitives = renderer.get_primitives();
 
         renderer.render(&bananas, &camera, clear_color, &primitives);
 

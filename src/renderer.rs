@@ -11,9 +11,9 @@ use lyon::{
 use wgpu::{util::DeviceExt, BindGroup, Buffer, Color, RenderPipeline, TextureView};
 use winit::window::Window;
 
-use crate::camera::Camera;
+use crate::{camera::Camera, shape::Rect};
 
-pub const PRIMITIVES_BUFFER_LEN: usize = 256;
+const GEOMETRY_PRIMITIVES_BUFFER_LEN: usize = 256;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -60,32 +60,43 @@ unsafe impl bytemuck::Zeroable for Globals {}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct Primitive {
+pub struct GeometryPrimitive {
     pub color: [f32; 4],
     pub translate: [f32; 2],
     pub scale: [f32; 2],
+    pub origin: [f32; 2],
     pub rotate: f32,
     pub z_index: i32,
     pub width: f32,
     pub _pad_1: i32,
+    pub _pad_2: i32,
+    pub _pad_3: i32,
 }
 
-impl Default for Primitive {
+impl Default for GeometryPrimitive {
     fn default() -> Self {
         Self {
             color: [1.0; 4],
             translate: [0.0; 2],
             scale: [1.0; 2],
+            origin: [0.0; 2],
             rotate: 0.0,
             z_index: 0,
             width: 0.0,
             _pad_1: 0,
+            _pad_2: 0,
+            _pad_3: 0,
         }
     }
 }
 
-unsafe impl bytemuck::Pod for Primitive {}
-unsafe impl bytemuck::Zeroable for Primitive {}
+impl GeometryPrimitive {
+    const FILL_Z_INDEX: i32 = 0;
+    const STROKE_Z_INDEX: i32 = 0;
+}
+
+unsafe impl bytemuck::Pod for GeometryPrimitive {}
+unsafe impl bytemuck::Zeroable for GeometryPrimitive {}
 
 pub struct Bananas {
     pub device: wgpu::Device,
@@ -167,7 +178,9 @@ pub struct Renderer {
     pub instance_count: u32,
     pub multisampled_render_target: Option<TextureView>,
     pub depth_texture_view: Option<TextureView>,
-    msaa_sample_count: u32,
+    pub msaa_sample_count: u32,
+    geometry_primitives: Vec<GeometryPrimitive>,
+    geometry_rect_instances: u32,
 }
 
 impl Renderer {
@@ -218,8 +231,9 @@ impl Renderer {
         let geometry_stroke_range = geometry_fill_range.end..(geometry.indices.len() as u32);
 
         let globals_byte_buffer_size = std::mem::size_of::<Globals>() as wgpu::BufferAddress;
-        let primitive_buffer_byte_size =
-            (PRIMITIVES_BUFFER_LEN * std::mem::size_of::<Primitive>()) as wgpu::BufferAddress;
+        let primitive_buffer_byte_size = (GEOMETRY_PRIMITIVES_BUFFER_LEN
+            * std::mem::size_of::<GeometryPrimitive>())
+            as wgpu::BufferAddress;
 
         let globals_ubo = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("globals ubo"),
@@ -380,6 +394,11 @@ impl Renderer {
 
         let depth_texture_view = None;
 
+        let geometry_primitives =
+            vec![GeometryPrimitive::default(); GEOMETRY_PRIMITIVES_BUFFER_LEN];
+
+        let geometry_rect_instances = 0;
+
         Self {
             fill_id,
             stroke_id,
@@ -395,6 +414,8 @@ impl Renderer {
             multisampled_render_target,
             depth_texture_view,
             msaa_sample_count,
+            geometry_primitives,
+            geometry_rect_instances,
         }
     }
 
@@ -427,12 +448,49 @@ impl Renderer {
         };
     }
 
+    pub fn begin_scene(&mut self) {
+        self.geometry_rect_instances = 0;
+    }
+
+    pub fn draw_rect(&mut self, rect: &Rect) {
+        let primitive_id = self.geometry_rect_instances as usize * 2;
+        assert!(primitive_id <= GEOMETRY_PRIMITIVES_BUFFER_LEN - 3);
+
+        let stroke_width = rect.stroke_width * 0.5;
+        let size = [rect.size[0] - stroke_width, rect.size[1] - stroke_width];
+        let rotation = (-rect.rotation).to_radians();
+
+        let mut stroke_primitive = &mut self.geometry_primitives[primitive_id];
+        stroke_primitive.color = rect.stroke_color;
+        stroke_primitive.translate = rect.position;
+        stroke_primitive.rotate = rotation;
+        stroke_primitive.scale = size;
+        stroke_primitive.origin = rect.origin;
+        stroke_primitive.z_index = GeometryPrimitive::STROKE_Z_INDEX + rect.z_index;
+        stroke_primitive.width = stroke_width;
+
+        let mut fill_primitive = &mut self.geometry_primitives[primitive_id + 1];
+        fill_primitive.color = rect.fill_color;
+        fill_primitive.translate = rect.position;
+        fill_primitive.rotate = rotation;
+        fill_primitive.scale = size;
+        fill_primitive.origin = rect.origin;
+        fill_primitive.z_index = GeometryPrimitive::FILL_Z_INDEX + rect.z_index;
+        fill_primitive.width = fill_primitive.width;
+
+        self.geometry_rect_instances += 1;
+    }
+
+    pub fn get_primitives(&self) -> &[GeometryPrimitive] {
+        &self.geometry_primitives
+    }
+
     pub fn render(
         &self,
         bananas: &Bananas,
         camera: &Camera,
         clear_color: Color,
-        primitives: &[Primitive],
+        primitives: &[GeometryPrimitive],
     ) {
         let globals = Globals {
             view: camera.get_view().to_cols_array_2d(),
@@ -507,12 +565,12 @@ impl Renderer {
             pass.set_vertex_buffer(0, self.geometry_vbo.slice(..));
 
             pass.draw_indexed(
-                self.geometry_fill_range.clone(),
+                self.geometry_stroke_range.clone(),
                 0,
                 0..(self.instance_count as u32),
             );
             pass.draw_indexed(
-                self.geometry_stroke_range.clone(),
+                self.geometry_fill_range.clone(),
                 0,
                 0..(self.instance_count as u32),
             );
