@@ -20,14 +20,14 @@ mod shape;
 fn main() {
     env_logger::init();
 
-    let mut scene = SceneParams {
+    let mut state = FrameState {
         window_size: PhysicalSize::new(DEFAULT_WINDOW_WIDTH as u32, DEFAULT_WINDOW_HEIGHT as u32),
         size_changed: true,
         render: false,
     };
 
     let event_loop = EventLoop::new();
-    let window_builder = WindowBuilder::new().with_inner_size(scene.window_size);
+    let window_builder = WindowBuilder::new().with_inner_size(state.window_size);
     let window = window_builder.build(&event_loop).unwrap();
 
     let blend_state = wgpu::BlendState {
@@ -35,6 +35,7 @@ fn main() {
         alpha: wgpu::BlendComponent::REPLACE,
     };
 
+    let clear_color = [1.0, 0.0, 1.0, 1.0];
     let sample_count = 4; // 1 = disable MSAA.
 
     let mut bananas = block_on(Bananas::new(&window));
@@ -43,6 +44,7 @@ fn main() {
         bananas.config.format,
         blend_state,
         sample_count,
+        clear_color,
     );
 
     let mut camera = Camera::new(bananas.size.width as f32, bananas.size.height as f32);
@@ -55,15 +57,15 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         //////////////////// INPUT ////////////////////
-        if !process_event(event, &window, control_flow, &mut scene) {
+        if !process_event(event, &window, control_flow, &mut state) {
             // keep polling inputs.
             return;
         }
 
-        if scene.size_changed {
-            scene.size_changed = false;
+        if state.size_changed {
+            state.size_changed = false;
 
-            let physical = scene.window_size;
+            let physical = state.window_size;
             bananas.resize(physical);
             renderer.resize(&bananas);
             camera.resize(physical.width as f32, physical.height as f32);
@@ -121,30 +123,21 @@ fn main() {
         pixel_measure_3.outline_color = [1.0, 1.0, 1.0, 1.0];
 
         //////////////////// RENDER ////////////////////
-        if !scene.render {
+        if !state.render {
             return;
         }
 
-        scene.render = false;
+        state.render = false;
 
-        let clear_color = wgpu::Color {
-            r: 1.0,
-            g: 0.0,
-            b: 1.0,
-            a: 1.0,
-        };
+        let mut scene = renderer.begin_scene(&camera);
 
-        renderer.begin_scene();
+        renderer.draw_shape(&mut scene, &pixel_measure_1);
+        renderer.draw_shape(&mut scene, &pixel_measure_2);
+        renderer.draw_shape(&mut scene, &pixel_measure_3);
+        renderer.draw_shape(&mut scene, &bottom_left);
+        renderer.draw_shape(&mut scene, &top_right);
 
-        renderer.draw_shape(&pixel_measure_1);
-        renderer.draw_shape(&pixel_measure_2);
-        renderer.draw_shape(&pixel_measure_3);
-        renderer.draw_shape(&bottom_left);
-        renderer.draw_shape(&top_right);
-
-        let primitives = renderer.get_primitives();
-
-        renderer.render(&bananas, &camera, clear_color, &primitives);
+        renderer.end_scene(scene, &bananas);
 
         frame_count += 1;
         let now = Instant::now();
@@ -156,7 +149,7 @@ fn main() {
     });
 }
 
-struct SceneParams {
+struct FrameState {
     window_size: PhysicalSize<u32>,
     size_changed: bool,
     render: bool,
@@ -166,11 +159,11 @@ fn process_event(
     event: Event<()>,
     window: &Window,
     control_flow: &mut ControlFlow,
-    scene: &mut SceneParams,
+    state: &mut FrameState,
 ) -> bool {
     match event {
         Event::RedrawRequested(_) => {
-            scene.render = true;
+            state.render = true;
         }
         Event::RedrawEventsCleared => {
             window.request_redraw();
@@ -190,8 +183,8 @@ fn process_event(
             event: WindowEvent::Resized(size),
             ..
         } => {
-            scene.window_size = size;
-            scene.size_changed = true
+            state.window_size = size;
+            state.size_changed = true
         }
         Event::WindowEvent {
             event:

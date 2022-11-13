@@ -164,7 +164,29 @@ impl Bananas {
     }
 }
 
+pub struct Scene<'scene> {
+    camera: &'scene Camera,
+    geometry_primitives: Vec<GeometryPrimitive>,
+    geometry_rect_instances: u32,
+}
+
+impl<'scene> Scene<'scene> {
+    fn new(camera: &'scene Camera) -> Self {
+        let geometry_primitives =
+            vec![GeometryPrimitive::default(); GEOMETRY_PRIMITIVES_BUFFER_LEN];
+
+        let geometry_rect_instances = 0;
+
+        Self {
+            camera,
+            geometry_primitives,
+            geometry_rect_instances,
+        }
+    }
+}
+
 pub struct Renderer {
+    pub clear_color: Color,
     pub fill_id: u32,
     pub stroke_id: u32,
     pub globals_ubo: Buffer,
@@ -178,8 +200,6 @@ pub struct Renderer {
     pub multisampled_render_target: Option<TextureView>,
     pub depth_texture_view: Option<TextureView>,
     pub msaa_sample_count: u32,
-    geometry_primitives: Vec<GeometryPrimitive>,
-    geometry_rect_instances: u32,
 }
 
 impl Renderer {
@@ -188,9 +208,16 @@ impl Renderer {
         surface_format: wgpu::TextureFormat,
         blend_state: wgpu::BlendState,
         msaa_sample_count: u32,
+        clear_color: [f32; 4],
     ) -> Self {
-        let tolerance = 0.02;
+        let clear_color = wgpu::Color {
+            r: clear_color[0] as f64,
+            g: clear_color[1] as f64,
+            b: clear_color[2] as f64,
+            a: clear_color[3] as f64,
+        };
 
+        let tolerance = 0.02;
         let stroke_id = 0;
         let fill_id = 1;
 
@@ -391,12 +418,8 @@ impl Renderer {
 
         let depth_texture_view = None;
 
-        let geometry_primitives =
-            vec![GeometryPrimitive::default(); GEOMETRY_PRIMITIVES_BUFFER_LEN];
-
-        let geometry_rect_instances = 0;
-
         Self {
+            clear_color,
             fill_id,
             stroke_id,
             globals_ubo,
@@ -410,8 +433,6 @@ impl Renderer {
             multisampled_render_target,
             depth_texture_view,
             msaa_sample_count,
-            geometry_primitives,
-            geometry_rect_instances,
         }
     }
 
@@ -444,47 +465,24 @@ impl Renderer {
         };
     }
 
-    pub fn begin_scene(&mut self) {
-        self.geometry_rect_instances = 0;
+    pub fn begin_scene<'scene>(&'scene self, camera: &'scene Camera) -> Scene {
+        Scene::new(camera)
     }
 
-    pub fn draw_shape(&mut self, shape: &impl Shape) {
-        let primitive_id = self.geometry_rect_instances as usize * 2;
-        assert!(primitive_id <= GEOMETRY_PRIMITIVES_BUFFER_LEN - 3);
-
-        let stroke_primitive = &mut self.geometry_primitives[primitive_id];
-        shape.stroke_primitive(stroke_primitive);
-
-        let fill_primitive = &mut self.geometry_primitives[primitive_id + 1];
-        shape.fill_primitive(fill_primitive);
-
-        // TODO: Show origin - debug.
-
-        self.geometry_rect_instances += 1;
-    }
-
-    pub fn get_primitives(&self) -> &[GeometryPrimitive] {
-        &self.geometry_primitives
-    }
-
-    pub fn render(
-        &self,
-        bananas: &Bananas,
-        camera: &Camera,
-        clear_color: Color,
-        primitives: &[GeometryPrimitive],
-    ) {
+    pub fn end_scene(&self, scene: Scene, bananas: &Bananas) {
         let globals = Globals {
-            view: camera.get_view().to_cols_array_2d(),
-            projection: camera.get_projection().to_cols_array_2d(),
+            view: scene.camera.get_view().to_cols_array_2d(),
+            projection: scene.camera.get_projection().to_cols_array_2d(),
         };
 
         bananas
             .queue
             .write_buffer(&self.globals_ubo, 0, bytemuck::cast_slice(&[globals]));
-        bananas
-            .queue
-            .write_buffer(&self.primitives_ubo, 0, bytemuck::cast_slice(primitives));
+        bananas.queue.write_buffer(
+            &self.primitives_ubo,
+            0,
+            bytemuck::cast_slice(&scene.geometry_primitives),
+        );
 
         let frame = match bananas.surface.get_current_texture() {
             Ok(texture) => texture,
@@ -508,7 +506,7 @@ impl Renderer {
             wgpu::RenderPassColorAttachment {
                 view: msaa_target,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(clear_color),
+                    load: wgpu::LoadOp::Clear(self.clear_color),
                     store: true,
                 },
                 resolve_target: Some(&render_target),
@@ -517,7 +515,7 @@ impl Renderer {
             wgpu::RenderPassColorAttachment {
                 view: &render_target,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(clear_color),
+                    load: wgpu::LoadOp::Clear(self.clear_color),
                     store: true,
                 },
                 resolve_target: None,
@@ -549,17 +547,32 @@ impl Renderer {
             pass.draw_indexed(
                 self.geometry_stroke_range.clone(),
                 0,
-                0..(self.geometry_rect_instances as u32),
+                0..(scene.geometry_rect_instances as u32),
             );
             pass.draw_indexed(
                 self.geometry_fill_range.clone(),
                 0,
-                0..(self.geometry_rect_instances as u32),
+                0..(scene.geometry_rect_instances as u32),
             );
         }
 
         bananas.queue.submit(Some(encoder.finish()));
         frame.present();
+    }
+
+    pub fn draw_shape(&self, scene: &mut Scene, shape: &impl Shape) {
+        let primitive_id = scene.geometry_rect_instances as usize * 2;
+        assert!(primitive_id <= GEOMETRY_PRIMITIVES_BUFFER_LEN - 3);
+
+        let stroke_primitive = &mut scene.geometry_primitives[primitive_id];
+        shape.stroke_primitive(stroke_primitive);
+
+        let fill_primitive = &mut scene.geometry_primitives[primitive_id + 1];
+        shape.fill_primitive(fill_primitive);
+
+        // TODO: Show origin - debug.
+
+        scene.geometry_rect_instances += 1;
     }
 
     pub fn create_multisampled_framebuffer(
