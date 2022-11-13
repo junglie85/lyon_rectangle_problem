@@ -8,7 +8,7 @@ use lyon::{
     },
     path::{Path, Winding},
 };
-use wgpu::{util::DeviceExt, BindGroup, Buffer, RenderPipeline, TextureView};
+use wgpu::{util::DeviceExt, BindGroup, Buffer, RenderPipeline, TextureView, VertexBufferLayout};
 use winit::window::Window;
 
 use crate::{
@@ -28,6 +28,32 @@ struct Vertex {
 
 unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
+
+impl Vertex {
+    fn desc<'a>() -> VertexBufferLayout<'a> {
+        VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as u64,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    format: wgpu::VertexFormat::Float32x2,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                    format: wgpu::VertexFormat::Float32x2,
+                    shader_location: 1,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    format: wgpu::VertexFormat::Uint32,
+                    shader_location: 2,
+                },
+            ],
+        }
+    }
+}
 
 struct VertexCtor(u32);
 
@@ -361,27 +387,7 @@ impl Renderer {
             vertex: wgpu::VertexState {
                 module: &geometry_vs_module,
                 entry_point: "vs_main",
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<Vertex>() as u64,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &[
-                        wgpu::VertexAttribute {
-                            offset: 0,
-                            format: wgpu::VertexFormat::Float32x2,
-                            shader_location: 0,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 8,
-                            format: wgpu::VertexFormat::Float32x2,
-                            shader_location: 1,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 16,
-                            format: wgpu::VertexFormat::Uint32,
-                            shader_location: 2,
-                        },
-                    ],
-                }],
+                buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &geometry_fs_module,
