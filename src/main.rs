@@ -10,11 +10,8 @@ use winit::window::{Window, WindowBuilder};
 use crate::camera::Camera;
 
 const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
-// pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
-// pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
-
-pub const DEFAULT_WINDOW_WIDTH: f32 = 400.0;
-pub const DEFAULT_WINDOW_HEIGHT: f32 = 400.0;
+pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
+pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
 
 mod camera;
 mod renderer;
@@ -80,8 +77,8 @@ fn main() {
         bottom_left.origin = [100.0, 100.0];
         bottom_left.z_index = 1;
         bottom_left.fill_color = [1.0, 1.0, 1.0, 1.0];
-        bottom_left.stroke_width = 1.0;
-        bottom_left.stroke_color = [0.0, 0.0, 0.0, 1.0];
+        bottom_left.outline_width = 1.0;
+        bottom_left.outline_color = [0.0, 0.0, 0.0, 1.0];
 
         let mut top_right = Rect::default();
         top_right.position = [400.0, 400.0];
@@ -89,19 +86,39 @@ fn main() {
         top_right.rotation = 0.0;
         top_right.origin = [0.0, 0.0];
         top_right.z_index = 1;
-        top_right.fill_color = [0.0, 1.0, 0.0, 1.0];
-        top_right.stroke_width = 5.0;
-        top_right.stroke_color = [1.0, 0.0, 0.0, 1.0];
+        top_right.fill_color = [0.0, 0.0, 0.0, 1.0];
+        top_right.outline_width = 5.0;
+        top_right.outline_color = [1.0, 1.0, 1.0, 1.0];
 
-        let mut pixel_measure = Rect::default();
-        pixel_measure.position = [397.5, 390.0];
-        pixel_measure.size = [5.0, 10.0];
-        pixel_measure.rotation = 0.0;
-        pixel_measure.origin = [0.0, 0.0];
-        pixel_measure.z_index = 1;
-        pixel_measure.fill_color = [1.0, 1.0, 1.0, 1.0];
-        pixel_measure.stroke_width = 0.0;
-        pixel_measure.stroke_color = [1.0, 1.0, 1.0, 1.0];
+        let mut pixel_measure_1 = Rect::default();
+        pixel_measure_1.position = [395.0, 389.0];
+        pixel_measure_1.size = [5.0, 5.0];
+        pixel_measure_1.rotation = 0.0;
+        pixel_measure_1.origin = [0.0, 0.0];
+        pixel_measure_1.z_index = 1;
+        pixel_measure_1.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_1.outline_width = 0.0;
+        pixel_measure_1.outline_color = [1.0, 1.0, 1.0, 1.0];
+
+        let mut pixel_measure_2 = Rect::default();
+        pixel_measure_2.position = [389.0, 395.0];
+        pixel_measure_2.size = [5.0, 5.0];
+        pixel_measure_2.rotation = 0.0;
+        pixel_measure_2.origin = [0.0, 0.0];
+        pixel_measure_2.z_index = 1;
+        pixel_measure_2.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_2.outline_width = 0.0;
+        pixel_measure_2.outline_color = [1.0, 1.0, 1.0, 1.0];
+
+        let mut pixel_measure_3 = Rect::default();
+        pixel_measure_3.position = [401.0, 401.0];
+        pixel_measure_3.size = [5.0, 5.0];
+        pixel_measure_3.rotation = 0.0;
+        pixel_measure_3.origin = [0.0, 0.0];
+        pixel_measure_3.z_index = 1;
+        pixel_measure_3.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_3.outline_width = 0.0;
+        pixel_measure_3.outline_color = [1.0, 1.0, 1.0, 1.0];
 
         //////////////////// RENDER ////////////////////
         if !scene.render {
@@ -111,17 +128,19 @@ fn main() {
         scene.render = false;
 
         let clear_color = wgpu::Color {
-            r: 0.1,
-            g: 0.2,
-            b: 0.3,
+            r: 1.0,
+            g: 0.0,
+            b: 1.0,
             a: 1.0,
         };
 
         renderer.begin_scene();
 
+        renderer.draw_rect(&pixel_measure_1);
+        renderer.draw_rect(&pixel_measure_2);
+        renderer.draw_rect(&pixel_measure_3);
         renderer.draw_rect(&bottom_left);
         renderer.draw_rect(&top_right);
-        renderer.draw_rect(&pixel_measure);
 
         let primitives = renderer.get_primitives();
 

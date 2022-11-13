@@ -7,8 +7,8 @@ pub struct Rect {
     pub origin: [f32; 2],
     pub z_index: i32,
     pub fill_color: [f32; 4],
-    pub stroke_width: f32,
-    pub stroke_color: [f32; 4],
+    pub outline_width: f32,
+    pub outline_color: [f32; 4],
 }
 
 impl Default for Rect {
@@ -20,8 +20,8 @@ impl Default for Rect {
             origin: [0.0; 2],
             z_index: 0,
             fill_color: [1.0; 4],
-            stroke_width: 0.0,
-            stroke_color: [1.0; 4],
+            outline_width: 0.0,
+            outline_color: [1.0; 4],
         }
     }
 }

@@ -12,7 +12,7 @@ struct Primitive {
     origin: vec2<f32>,
     rotate: f32,
     z_index: i32,
-    width: f32,
+    outline_width: f32,
     pad_1: i32,
     pad_2: i32,
     pad_3: i32,
@@ -46,7 +46,7 @@ fn vs_main(
         vec2<f32>(sin(primitive.rotate), cos(primitive.rotate))
     );
 
-    var local_position = (position * primitive.scale + normal * primitive.width)- primitive.origin;
+    var local_position = (position * primitive.scale + normal * primitive.outline_width) - primitive.origin;
     
     // local_position = local_position - primitive.origin;
     local_position = local_position * rotation;

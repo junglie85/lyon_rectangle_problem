@@ -175,7 +175,6 @@ pub struct Renderer {
     pub geometry_vbo: Buffer,
     pub geometry_fill_range: Range<u32>,
     pub geometry_stroke_range: Range<u32>,
-    pub instance_count: u32,
     pub multisampled_render_target: Option<TextureView>,
     pub depth_texture_view: Option<TextureView>,
     pub msaa_sample_count: u32,
@@ -190,8 +189,6 @@ impl Renderer {
         blend_state: wgpu::BlendState,
         msaa_sample_count: u32,
     ) -> Self {
-        let instance_count = 3;
-
         let tolerance = 0.02;
 
         let stroke_id = 0;
@@ -410,7 +407,6 @@ impl Renderer {
             geometry_vbo,
             geometry_fill_range,
             geometry_stroke_range,
-            instance_count,
             multisampled_render_target,
             depth_texture_view,
             msaa_sample_count,
@@ -456,27 +452,42 @@ impl Renderer {
         let primitive_id = self.geometry_rect_instances as usize * 2;
         assert!(primitive_id <= GEOMETRY_PRIMITIVES_BUFFER_LEN - 3);
 
-        let stroke_width = rect.stroke_width * 0.5;
-        let size = [rect.size[0] - stroke_width, rect.size[1] - stroke_width];
+        // The outline_width is applied in the geometry shader, but it scales the vertex positions
+        // which results in the outline being twice the desired width, so here we halve the outline_width.
+        // The size and position of the outline are adjusted to account for this and ensure the total
+        // rendered size is `2*rect.outline_width + rect.size`, with the outline offset at
+        // `position - outline_width`.
+        let outline_width = rect.outline_width * 0.5;
+        let outline_size = [
+            rect.size[0] + rect.outline_width,
+            rect.size[1] + rect.outline_width,
+        ];
+        let outline_position = [
+            rect.position[0] - outline_width,
+            rect.position[1] - outline_width,
+        ];
+
         let rotation = (-rect.rotation).to_radians();
 
         let mut stroke_primitive = &mut self.geometry_primitives[primitive_id];
-        stroke_primitive.color = rect.stroke_color;
-        stroke_primitive.translate = rect.position;
+        stroke_primitive.color = rect.outline_color;
+        stroke_primitive.translate = outline_position;
         stroke_primitive.rotate = rotation;
-        stroke_primitive.scale = size;
+        stroke_primitive.scale = outline_size;
         stroke_primitive.origin = rect.origin;
         stroke_primitive.z_index = GeometryPrimitive::STROKE_Z_INDEX + rect.z_index;
-        stroke_primitive.width = stroke_width;
+        stroke_primitive.width = outline_width;
 
         let mut fill_primitive = &mut self.geometry_primitives[primitive_id + 1];
         fill_primitive.color = rect.fill_color;
         fill_primitive.translate = rect.position;
         fill_primitive.rotate = rotation;
-        fill_primitive.scale = size;
+        fill_primitive.scale = rect.size;
         fill_primitive.origin = rect.origin;
         fill_primitive.z_index = GeometryPrimitive::FILL_Z_INDEX + rect.z_index;
         fill_primitive.width = fill_primitive.width;
+
+        // TODO: Show origin - debug.
 
         self.geometry_rect_instances += 1;
     }
@@ -567,12 +578,12 @@ impl Renderer {
             pass.draw_indexed(
                 self.geometry_stroke_range.clone(),
                 0,
-                0..(self.instance_count as u32),
+                0..(self.geometry_rect_instances as u32),
             );
             pass.draw_indexed(
                 self.geometry_fill_range.clone(),
                 0,
-                0..(self.instance_count as u32),
+                0..(self.geometry_rect_instances as u32),
             );
         }
 
