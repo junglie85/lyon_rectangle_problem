@@ -1,6 +1,7 @@
 use futures::executor::block_on;
+use glam::Vec2;
 use renderer::{Bananas, Renderer};
-use shape::Rect;
+use shape::{Color, Rect};
 use std::time::{Duration, Instant};
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
@@ -35,7 +36,7 @@ fn main() {
         alpha: wgpu::BlendComponent::REPLACE,
     };
 
-    let clear_color = [1.0, 0.0, 1.0, 1.0];
+    let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
     let sample_count = 4; // 1 = disable MSAA.
 
     let mut bananas = block_on(Bananas::new(&window));
@@ -73,54 +74,54 @@ fn main() {
 
         //////////////////// UPDATE ////////////////////
         let mut bottom_left = Rect::default();
-        bottom_left.position = [200.0, 200.0];
-        bottom_left.size = [200.0, 200.0];
+        bottom_left.position = Vec2::new(200.0, 200.0);
+        bottom_left.size = Vec2::new(200.0, 200.0);
         bottom_left.rotation = 30.0;
-        bottom_left.origin = [100.0, 100.0];
+        bottom_left.origin = Vec2::new(100.0, 100.0);
         bottom_left.z_index = 1;
-        bottom_left.fill_color = [1.0, 1.0, 1.0, 1.0];
+        bottom_left.fill_color = Color::WHITE;
         bottom_left.outline_width = 1.0;
-        bottom_left.outline_color = [0.0, 0.0, 0.0, 1.0];
+        bottom_left.outline_color = Color::BLACK;
 
         let mut top_right = Rect::default();
-        top_right.position = [400.0, 400.0];
-        top_right.size = [300.0, 200.0];
+        top_right.position = Vec2::new(400.0, 400.0);
+        top_right.size = Vec2::new(300.0, 200.0);
         top_right.rotation = 0.0;
-        top_right.origin = [0.0, 0.0];
+        top_right.origin = Vec2::new(0.0, 0.0);
         top_right.z_index = 1;
-        top_right.fill_color = [0.0, 0.0, 0.0, 1.0];
+        top_right.fill_color = Color::BLACK;
         top_right.outline_width = 5.0;
-        top_right.outline_color = [1.0, 1.0, 1.0, 1.0];
+        top_right.outline_color = Color::WHITE;
 
         let mut pixel_measure_1 = Rect::default();
-        pixel_measure_1.position = [395.0, 389.0];
-        pixel_measure_1.size = [5.0, 5.0];
+        pixel_measure_1.position = Vec2::new(395.0, 389.0);
+        pixel_measure_1.size = Vec2::new(5.0, 5.0);
         pixel_measure_1.rotation = 0.0;
-        pixel_measure_1.origin = [0.0, 0.0];
+        pixel_measure_1.origin = Vec2::new(0.0, 0.0);
         pixel_measure_1.z_index = 1;
-        pixel_measure_1.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_1.fill_color = Color::WHITE;
         pixel_measure_1.outline_width = 0.0;
-        pixel_measure_1.outline_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_1.outline_color = Color::WHITE;
 
         let mut pixel_measure_2 = Rect::default();
-        pixel_measure_2.position = [389.0, 395.0];
-        pixel_measure_2.size = [5.0, 5.0];
+        pixel_measure_2.position = Vec2::new(389.0, 395.0);
+        pixel_measure_2.size = Vec2::new(5.0, 5.0);
         pixel_measure_2.rotation = 0.0;
-        pixel_measure_2.origin = [0.0, 0.0];
+        pixel_measure_2.origin = Vec2::new(0.0, 0.0);
         pixel_measure_2.z_index = 1;
-        pixel_measure_2.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_2.fill_color = Color::WHITE;
         pixel_measure_2.outline_width = 0.0;
-        pixel_measure_2.outline_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_2.outline_color = Color::WHITE;
 
         let mut pixel_measure_3 = Rect::default();
-        pixel_measure_3.position = [401.0, 401.0];
-        pixel_measure_3.size = [5.0, 5.0];
+        pixel_measure_3.position = Vec2::new(401.0, 401.0);
+        pixel_measure_3.size = Vec2::new(5.0, 5.0);
         pixel_measure_3.rotation = 0.0;
-        pixel_measure_3.origin = [0.0, 0.0];
+        pixel_measure_3.origin = Vec2::new(0.0, 0.0);
         pixel_measure_3.z_index = 1;
-        pixel_measure_3.fill_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_3.fill_color = Color::WHITE;
         pixel_measure_3.outline_width = 0.0;
-        pixel_measure_3.outline_color = [1.0, 1.0, 1.0, 1.0];
+        pixel_measure_3.outline_color = Color::WHITE;
 
         //////////////////// RENDER ////////////////////
         if !state.render {

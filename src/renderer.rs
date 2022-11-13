@@ -8,10 +8,13 @@ use lyon::{
     },
     path::{Path, Winding},
 };
-use wgpu::{util::DeviceExt, BindGroup, Buffer, Color, RenderPipeline, TextureView};
+use wgpu::{util::DeviceExt, BindGroup, Buffer, RenderPipeline, TextureView};
 use winit::window::Window;
 
-use crate::{camera::Camera, shape::Shape};
+use crate::{
+    camera::Camera,
+    shape::{Color, Shape},
+};
 
 const GEOMETRY_PRIMITIVES_BUFFER_LEN: usize = 256;
 
@@ -208,15 +211,8 @@ impl Renderer {
         surface_format: wgpu::TextureFormat,
         blend_state: wgpu::BlendState,
         msaa_sample_count: u32,
-        clear_color: [f32; 4],
+        clear_color: Color,
     ) -> Self {
-        let clear_color = wgpu::Color {
-            r: clear_color[0] as f64,
-            g: clear_color[1] as f64,
-            b: clear_color[2] as f64,
-            a: clear_color[3] as f64,
-        };
-
         let tolerance = 0.02;
         let stroke_id = 0;
         let fill_id = 1;
@@ -502,11 +498,18 @@ impl Renderer {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
+        let clear_color = wgpu::Color {
+            r: self.clear_color.r as f64,
+            g: self.clear_color.g as f64,
+            b: self.clear_color.b as f64,
+            a: self.clear_color.a as f64,
+        };
+
         let color_attachment = if let Some(msaa_target) = &self.multisampled_render_target {
             wgpu::RenderPassColorAttachment {
                 view: msaa_target,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color),
+                    load: wgpu::LoadOp::Clear(clear_color),
                     store: true,
                 },
                 resolve_target: Some(&render_target),
@@ -515,7 +518,7 @@ impl Renderer {
             wgpu::RenderPassColorAttachment {
                 view: &render_target,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(self.clear_color),
+                    load: wgpu::LoadOp::Clear(clear_color),
                     store: true,
                 },
                 resolve_target: None,

@@ -1,4 +1,27 @@
+use glam::Vec2;
+
 use crate::renderer::GeometryPrimitive;
+
+#[derive(Debug, Copy, Clone)]
+pub struct Color {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+impl Color {
+    pub const WHITE: Self = Self::new(1.0, 1.0, 1.0, 1.0);
+    pub const BLACK: Self = Self::new(0.0, 0.0, 0.0, 1.0);
+
+    pub const fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
+
+    pub const fn to_array(&self) -> [f32; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+}
 
 pub trait Shape {
     fn fill_primitive(&self, primitive: &mut GeometryPrimitive);
@@ -9,27 +32,27 @@ pub trait Shape {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Rect {
-    pub position: [f32; 2],
-    pub size: [f32; 2],
-    pub rotation: f32,
-    pub origin: [f32; 2],
+    pub position: Vec2,
+    pub size: Vec2,
+    pub rotation: f32, // TODO: Quaternion
+    pub origin: Vec2,
     pub z_index: i32,
-    pub fill_color: [f32; 4],
+    pub fill_color: Color,
     pub outline_width: f32,
-    pub outline_color: [f32; 4],
+    pub outline_color: Color,
 }
 
 impl Default for Rect {
     fn default() -> Self {
         Self {
-            position: [0.0; 2],
-            size: [1.0; 2],
+            position: Vec2::new(0.0, 0.0),
+            size: Vec2::new(1.0, 1.0),
             rotation: 0.0,
-            origin: [0.0; 2],
+            origin: Vec2::new(0.0, 0.0),
             z_index: 0,
-            fill_color: [1.0; 4],
+            fill_color: Color::WHITE,
             outline_width: 0.0,
-            outline_color: [1.0; 4],
+            outline_color: Color::WHITE,
         }
     }
 }
@@ -38,11 +61,11 @@ impl Shape for Rect {
     fn fill_primitive(&self, primitive: &mut GeometryPrimitive) {
         let rotation = (-self.rotation).to_radians();
 
-        primitive.color = self.fill_color;
-        primitive.translate = self.position;
+        primitive.color = self.fill_color.to_array();
+        primitive.translate = self.position.to_array();
         primitive.rotate = rotation;
-        primitive.scale = self.size;
-        primitive.origin = self.origin;
+        primitive.scale = self.size.to_array();
+        primitive.origin = self.origin.to_array();
         primitive.z_index = GeometryPrimitive::FILL_Z_INDEX + self.z_index;
         primitive.width = primitive.width;
     }
@@ -65,11 +88,11 @@ impl Shape for Rect {
             self.position[1] - outline_width,
         ];
 
-        primitive.color = self.outline_color;
+        primitive.color = self.outline_color.to_array();
         primitive.translate = outline_position;
         primitive.rotate = rotation;
         primitive.scale = outline_size;
-        primitive.origin = self.origin;
+        primitive.origin = self.origin.to_array();
         primitive.z_index = GeometryPrimitive::STROKE_Z_INDEX + self.z_index;
         primitive.width = outline_width;
     }
