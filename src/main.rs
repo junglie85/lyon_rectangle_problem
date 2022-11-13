@@ -136,11 +136,11 @@ fn main() {
 
         renderer.begin_scene();
 
-        renderer.draw_rect(&pixel_measure_1);
-        renderer.draw_rect(&pixel_measure_2);
-        renderer.draw_rect(&pixel_measure_3);
-        renderer.draw_rect(&bottom_left);
-        renderer.draw_rect(&top_right);
+        renderer.draw_shape(&pixel_measure_1);
+        renderer.draw_shape(&pixel_measure_2);
+        renderer.draw_shape(&pixel_measure_3);
+        renderer.draw_shape(&bottom_left);
+        renderer.draw_shape(&top_right);
 
         let primitives = renderer.get_primitives();
 

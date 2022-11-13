@@ -11,7 +11,7 @@ use lyon::{
 use wgpu::{util::DeviceExt, BindGroup, Buffer, Color, RenderPipeline, TextureView};
 use winit::window::Window;
 
-use crate::{camera::Camera, shape::Rect};
+use crate::{camera::Camera, shape::Shape};
 
 const GEOMETRY_PRIMITIVES_BUFFER_LEN: usize = 256;
 
@@ -91,8 +91,8 @@ impl Default for GeometryPrimitive {
 }
 
 impl GeometryPrimitive {
-    const FILL_Z_INDEX: i32 = 0;
-    const STROKE_Z_INDEX: i32 = 0;
+    pub(crate) const FILL_Z_INDEX: i32 = 0;
+    pub(crate) const STROKE_Z_INDEX: i32 = 0;
 }
 
 unsafe impl bytemuck::Pod for GeometryPrimitive {}
@@ -448,44 +448,15 @@ impl Renderer {
         self.geometry_rect_instances = 0;
     }
 
-    pub fn draw_rect(&mut self, rect: &Rect) {
+    pub fn draw_shape(&mut self, shape: &impl Shape) {
         let primitive_id = self.geometry_rect_instances as usize * 2;
         assert!(primitive_id <= GEOMETRY_PRIMITIVES_BUFFER_LEN - 3);
 
-        // The outline_width is applied in the geometry shader, but it scales the vertex positions
-        // which results in the outline being twice the desired width, so here we halve the outline_width.
-        // The size and position of the outline are adjusted to account for this and ensure the total
-        // rendered size is `2*rect.outline_width + rect.size`, with the outline offset at
-        // `position - outline_width`.
-        let outline_width = rect.outline_width * 0.5;
-        let outline_size = [
-            rect.size[0] + rect.outline_width,
-            rect.size[1] + rect.outline_width,
-        ];
-        let outline_position = [
-            rect.position[0] - outline_width,
-            rect.position[1] - outline_width,
-        ];
+        let stroke_primitive = &mut self.geometry_primitives[primitive_id];
+        shape.stroke_primitive(stroke_primitive);
 
-        let rotation = (-rect.rotation).to_radians();
-
-        let mut stroke_primitive = &mut self.geometry_primitives[primitive_id];
-        stroke_primitive.color = rect.outline_color;
-        stroke_primitive.translate = outline_position;
-        stroke_primitive.rotate = rotation;
-        stroke_primitive.scale = outline_size;
-        stroke_primitive.origin = rect.origin;
-        stroke_primitive.z_index = GeometryPrimitive::STROKE_Z_INDEX + rect.z_index;
-        stroke_primitive.width = outline_width;
-
-        let mut fill_primitive = &mut self.geometry_primitives[primitive_id + 1];
-        fill_primitive.color = rect.fill_color;
-        fill_primitive.translate = rect.position;
-        fill_primitive.rotate = rotation;
-        fill_primitive.scale = rect.size;
-        fill_primitive.origin = rect.origin;
-        fill_primitive.z_index = GeometryPrimitive::FILL_Z_INDEX + rect.z_index;
-        fill_primitive.width = fill_primitive.width;
+        let fill_primitive = &mut self.geometry_primitives[primitive_id + 1];
+        shape.fill_primitive(fill_primitive);
 
         // TODO: Show origin - debug.
 
