@@ -13,7 +13,7 @@ use winit::window::Window;
 
 use crate::{
     camera::Camera,
-    shape::{Color, Shape},
+    shape::{Color, Drawable, Transform},
 };
 
 const GEOMETRY_PRIMITIVES_BUFFER_LEN: usize = 256;
@@ -569,15 +569,44 @@ impl Renderer {
         frame.present();
     }
 
-    pub fn draw_shape(&self, scene: &mut Scene, shape: &impl Shape) {
+    pub fn draw(&self, scene: &mut Scene, transform: &Transform, drawable: &Drawable) {
         let primitive_id = scene.geometry_rect_instances as usize * 2;
         assert!(primitive_id <= GEOMETRY_PRIMITIVES_BUFFER_LEN - 3);
 
+        let rotation = (-transform.rotation).to_radians();
+
+        // The outline_width is applied in the geometry shader, but it scales the vertex positions
+        // which results in the outline being twice the desired width, so here we halve the outline_width.
+        // The size and position of the outline are adjusted to account for this and ensure the total
+        // rendered size is `2*rect.outline_width + rect.size`, with the outline offset at
+        // `position - outline_width`.
+        let stroke_outline_width = drawable.outline_width * 0.5;
+        let stroke_outline_size = [
+            transform.size[0] + drawable.outline_width,
+            transform.size[1] + drawable.outline_width,
+        ];
+        let stroke_outline_position = [
+            transform.position[0] - stroke_outline_width,
+            transform.position[1] - stroke_outline_width,
+        ];
+
         let stroke_primitive = &mut scene.geometry_primitives[primitive_id];
-        shape.stroke_primitive(stroke_primitive);
+        stroke_primitive.color = drawable.outline_color.to_array();
+        stroke_primitive.translate = stroke_outline_position;
+        stroke_primitive.rotate = rotation;
+        stroke_primitive.scale = stroke_outline_size;
+        stroke_primitive.origin = transform.origin.to_array();
+        stroke_primitive.z_index = GeometryPrimitive::STROKE_Z_INDEX + drawable.z_index;
+        stroke_primitive.width = stroke_outline_width;
 
         let fill_primitive = &mut scene.geometry_primitives[primitive_id + 1];
-        shape.fill_primitive(fill_primitive);
+        fill_primitive.color = drawable.fill_color.to_array();
+        fill_primitive.translate = transform.position.to_array();
+        fill_primitive.rotate = rotation;
+        fill_primitive.scale = transform.size.to_array();
+        fill_primitive.origin = transform.origin.to_array();
+        fill_primitive.z_index = GeometryPrimitive::FILL_Z_INDEX + drawable.z_index;
+        fill_primitive.width = fill_primitive.width;
 
         // TODO: Show origin - debug.
 
