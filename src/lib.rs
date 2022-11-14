@@ -18,7 +18,7 @@ mod camera;
 mod renderer;
 mod shape;
 
-fn main() {
+pub fn start() {
     env_logger::init();
 
     let mut state = FrameState {
