@@ -1,11 +1,12 @@
 use std::time::{Duration, Instant};
 
+use components::{Drawable, Style, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
 use glam::Vec2;
+use graphics::Color;
 use hecs::World;
 use renderer::{Bananas, Renderer};
-use shape::{Color, Drawable, Style, Transform};
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -20,8 +21,9 @@ pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
 
 mod camera;
+mod components;
+mod graphics;
 mod renderer;
-mod shape;
 
 pub fn start() {
     let mut state = FrameState {
@@ -153,11 +155,6 @@ pub fn start() {
 
         let mut scene = renderer.begin_scene(&camera);
 
-        // renderer.draw_shape(&mut scene, &pixel_measure_1);
-        // renderer.draw_shape(&mut scene, &pixel_measure_2);
-        // renderer.draw_shape(&mut scene, &pixel_measure_3);
-        // renderer.draw_shape(&mut scene, &bottom_left);
-        // renderer.draw_shape(&mut scene, &top_right);
         for (_id, (transform, drawable)) in world.query::<(&Transform, &Drawable)>().iter() {
             renderer.draw(&mut scene, transform, drawable);
         }

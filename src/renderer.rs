@@ -13,7 +13,8 @@ use winit::window::Window;
 
 use crate::{
     camera::Camera,
-    shape::{Color, Drawable, Transform},
+    components::{Drawable, Transform},
+    graphics::Color,
 };
 
 const GEOMETRY_PRIMITIVES_BUFFER_LEN: usize = 256;
