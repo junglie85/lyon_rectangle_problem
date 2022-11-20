@@ -1,12 +1,16 @@
 use std::time::{Duration, Instant};
 
-use components::{Drawable, Style, Transform};
+use components::{compute_transformation_matrix, Drawable, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
-use glam::Vec2;
-use graphics::Color;
+use glam::{Vec2, Vec4};
+use graphics::{Color, Rect};
 use hecs::World;
-use renderer::{Bananas, Renderer};
+use renderer::{Bananas, Globals, Renderer, Vertex};
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    BufferAddress, BufferUsages,
+};
 use winit::{
     dpi::PhysicalSize,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -14,7 +18,10 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::camera::Camera;
+use crate::{
+    camera::Camera,
+    graphics::{Geometry, Tesselator},
+};
 
 const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
@@ -53,73 +60,171 @@ pub fn start() {
         clear_color,
     );
 
+    let tolerance = 0.02;
+    let mut tesselator = Tesselator::new(tolerance);
+
     let mut world = World::new();
 
     let mut camera = Camera::new(bananas.size.width as f32, bananas.size.height as f32);
 
     let mut transform = Transform::default();
-    transform.position = Vec2::new(200.0, 200.0);
-    transform.size = Vec2::new(200.0, 200.0);
+    transform.translation = Vec2::new(200.0, 200.0);
     transform.rotation = 30.0;
     transform.origin = Vec2::new(100.0, 100.0);
-    let mut drawable = Drawable::default();
-    drawable.style = Style::Rect;
-    drawable.z_index = 1;
-    drawable.fill_color = Color::WHITE;
-    drawable.outline_width = 1.0;
-    drawable.outline_color = Color::BLACK;
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(200.0, 200.0);
+    rect.fill_color = Color::WHITE;
+    rect.outline_thickness = 1.0;
+    rect.outline_color = Color::BLACK;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
     world.spawn((transform, drawable));
 
     let mut transform = Transform::default();
-    transform.position = Vec2::new(400.0, 400.0);
-    transform.size = Vec2::new(300.0, 200.0);
-    transform.rotation = 0.0;
-    transform.origin = Vec2::new(0.0, 0.0);
-    let mut drawable = Drawable::default();
-    drawable.style = Style::Rect;
-    drawable.z_index = 1;
-    drawable.fill_color = Color::BLACK;
-    drawable.outline_width = 5.0;
-    drawable.outline_color = Color::WHITE;
+    transform.translation = Vec2::new(400.0, 400.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(300.0, 150.0);
+    rect.fill_color = Color::BLACK;
+    rect.outline_thickness = 5.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    // Bottom left
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(400.0, 405.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
     world.spawn((transform, drawable));
 
     let mut transform = Transform::default();
-    transform.position = Vec2::new(395.0, 389.0);
-    transform.size = Vec2::new(5.0, 5.0);
-    transform.rotation = 0.0;
-    transform.origin = Vec2::new(0.0, 0.0);
-    let mut drawable = Drawable::default();
-    drawable.style = Style::Rect;
-    drawable.z_index = 1;
-    drawable.fill_color = Color::WHITE;
-    drawable.outline_width = 0.0;
-    drawable.outline_color = Color::WHITE;
+    transform.translation = Vec2::new(405.0, 400.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
     world.spawn((transform, drawable));
 
     let mut transform = Transform::default();
-    transform.position = Vec2::new(389.0, 395.0);
-    transform.size = Vec2::new(5.0, 5.0);
-    transform.rotation = 0.0;
-    transform.origin = Vec2::new(0.0, 0.0);
-    let mut drawable = Drawable::default();
-    drawable.style = Style::Rect;
-    drawable.z_index = 1;
-    drawable.fill_color = Color::WHITE;
-    drawable.outline_width = 0.0;
-    drawable.outline_color = Color::WHITE;
+    transform.translation = Vec2::new(405.0, 405.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    // Top left
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(400.0, 540.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
     world.spawn((transform, drawable));
 
     let mut transform = Transform::default();
-    transform.position = Vec2::new(401.0, 401.0);
-    transform.size = Vec2::new(5.0, 5.0);
-    transform.rotation = 0.0;
-    transform.origin = Vec2::new(0.0, 0.0);
-    let mut drawable = Drawable::default();
-    drawable.style = Style::Rect;
-    drawable.z_index = 2;
-    drawable.fill_color = Color::WHITE;
-    drawable.outline_width = 0.0;
-    drawable.outline_color = Color::WHITE;
+    transform.translation = Vec2::new(405.0, 545.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(405.0, 540.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    // Bottom right
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(695.0, 405.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(690.0, 400.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(690.0, 405.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    // Top right
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(695.0, 540.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(690.0, 545.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(690.0, 540.0);
+    let mut rect = Rect::default();
+    rect.size = Vec2::new(5.0, 5.0);
+    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
+    rect.outline_thickness = 0.0;
+    rect.outline_color = Color::WHITE;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
     world.spawn((transform, drawable));
 
     let start = Instant::now();
@@ -153,13 +258,144 @@ pub fn start() {
 
         state.render = false;
 
-        let mut scene = renderer.begin_scene(&camera);
+        let mut vertices = Vec::with_capacity(renderer.max_geometry_vertices); // TODO: set a capacity and draw when reached.
+        let mut indices = Vec::with_capacity(renderer.max_geometry_indices); // TODO: set a capacity and draw when reached.
 
         for (_id, (transform, drawable)) in world.query::<(&Transform, &Drawable)>().iter() {
-            renderer.draw(&mut scene, transform, drawable);
+            let t = compute_transformation_matrix(&transform);
+            let index_offset = vertices.len() as u16;
+            match drawable {
+                Drawable::Rect(actual_rect) => {
+                    for v in actual_rect.vertices() {
+                        let transformed = t * Vec4::from((v.position(), 0.0, 1.0));
+                        let position = [transformed.x, transformed.y];
+                        let color = v.color().to_array();
+                        let vertex = Vertex { position, color };
+                        vertices.push(vertex);
+                    }
+
+                    for i in actual_rect.indices() {
+                        indices.push(index_offset + i);
+                    }
+                }
+            }
         }
 
-        renderer.end_scene(scene, &bananas);
+        let globals = Globals {
+            view: camera.get_view().to_cols_array_2d(),
+            projection: camera.get_projection().to_cols_array_2d(),
+        };
+
+        bananas
+            .queue
+            .write_buffer(&renderer.globals_ubo, 0, bytemuck::cast_slice(&[globals]));
+
+        let frame = match bananas.surface.get_current_texture() {
+            Ok(texture) => texture,
+            Err(e) => {
+                println!("swapchain error: {:?}", e);
+                return;
+            }
+        };
+
+        let mut encoder = bananas
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("encoder"),
+            });
+
+        let vertex_buffer = bananas.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("frame geometry vbo"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: BufferUsages::COPY_SRC,
+        });
+
+        let index_buffer = bananas.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("frame geometry ibo"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: BufferUsages::COPY_SRC,
+        });
+
+        if vertices.len() > renderer.max_geometry_vertices
+            || indices.len() > renderer.max_geometry_indices
+        {
+            renderer.resize_geometry_buffers(&bananas.device, vertices.len(), indices.len())
+        }
+
+        encoder.copy_buffer_to_buffer(
+            &vertex_buffer,
+            0,
+            &renderer.geometry_vbo,
+            0,
+            (std::mem::size_of::<Vertex>() * vertices.len()) as BufferAddress,
+        );
+
+        encoder.copy_buffer_to_buffer(
+            &index_buffer,
+            0,
+            &renderer.geometry_ibo,
+            0,
+            (std::mem::size_of::<u16>() * indices.len()) as BufferAddress,
+        );
+
+        let render_target = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let clear_color = wgpu::Color {
+            r: renderer.clear_color.r as f64,
+            g: renderer.clear_color.g as f64,
+            b: renderer.clear_color.b as f64,
+            a: renderer.clear_color.a as f64,
+        };
+
+        let color_attachment = if let Some(msaa_target) = &renderer.multisampled_render_target {
+            wgpu::RenderPassColorAttachment {
+                view: msaa_target,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear_color),
+                    store: true,
+                },
+                resolve_target: Some(&render_target),
+            }
+        } else {
+            wgpu::RenderPassColorAttachment {
+                view: &render_target,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear_color),
+                    store: true,
+                },
+                resolve_target: None,
+            }
+        };
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(color_attachment)],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: renderer.depth_texture_view.as_ref().unwrap(),
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0.0),
+                        store: true,
+                    }),
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0),
+                        store: true,
+                    }),
+                }),
+            });
+
+            pass.set_pipeline(&renderer.geometry_pipeline);
+            pass.set_bind_group(0, &renderer.globals_bind_group, &[]);
+            pass.set_index_buffer(renderer.geometry_ibo.slice(..), wgpu::IndexFormat::Uint16);
+            pass.set_vertex_buffer(0, renderer.geometry_vbo.slice(..));
+
+            pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
+        }
+
+        bananas.queue.submit(Some(encoder.finish()));
+        frame.present();
 
         frame_count += 1;
         let now = Instant::now();

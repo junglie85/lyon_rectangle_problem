@@ -1,52 +1,34 @@
-use glam::Vec2;
+use glam::{Mat4, Vec2, Vec3};
 
-use crate::graphics::Color;
+use crate::graphics::Rect;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Transform {
-    pub position: Vec2,
-    pub size: Vec2,
+    pub translation: Vec2,
     pub rotation: f32,
+    pub scale: Vec2,
     pub origin: Vec2,
 }
 
 impl Default for Transform {
     fn default() -> Self {
         Self {
-            position: Vec2::new(0.0, 0.0),
-            size: Vec2::new(1.0, 1.0),
+            translation: Vec2::new(0.0, 0.0),
             rotation: 0.0,
+            scale: Vec2::new(1.0, 1.0),
             origin: Vec2::new(0.0, 0.0),
         }
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum Style {
-    Rect,
-    // Circle(radius_on_width_or_height),
-    // Triangle,
-    // Polygon(point_count),
-    // Sprite(metadata),
+pub fn compute_transformation_matrix(t: &Transform) -> Mat4 {
+    let mut transform = Mat4::from_translation(Vec3::new(t.translation.x, t.translation.y, 0.0));
+    transform *= Mat4::from_rotation_z(-t.rotation.to_radians());
+    transform *= Mat4::from_scale(Vec3::new(t.scale.x, t.scale.y, 0.0));
+    transform
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Drawable {
-    pub style: Style,
-    pub z_index: i32,
-    pub fill_color: Color,
-    pub outline_width: f32,
-    pub outline_color: Color,
-}
-
-impl Default for Drawable {
-    fn default() -> Self {
-        Self {
-            z_index: 0,
-            fill_color: Color::WHITE,
-            outline_width: 0.0,
-            outline_color: Color::WHITE,
-            style: Style::Rect,
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum Drawable {
+    Rect(Rect),
 }
