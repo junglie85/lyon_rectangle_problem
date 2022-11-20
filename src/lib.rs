@@ -4,7 +4,7 @@ use components::{compute_transformation_matrix, Drawable, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
 use glam::{Vec2, Vec4};
-use graphics::{Color, Rect};
+use graphics::{CircleShape, Color, RectangleShape};
 use hecs::World;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
@@ -69,9 +69,21 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(200.0, 200.0);
+    transform.origin = Vec2::new(100.0, 100.0);
+    let mut rect = RectangleShape::default();
+    rect.size = Vec2::new(200.0, 200.0);
+    rect.fill_color = Color::WHITE;
+    rect.outline_thickness = 1.0;
+    rect.outline_color = Color::BLACK;
+    rect.update(&mut tesselator);
+    let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(200.0, 200.0);
     transform.rotation = 30.0;
     transform.origin = Vec2::new(100.0, 100.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(200.0, 200.0);
     rect.fill_color = Color::WHITE;
     rect.outline_thickness = 1.0;
@@ -82,7 +94,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(400.0, 400.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(300.0, 150.0);
     rect.fill_color = Color::BLACK;
     rect.outline_thickness = 5.0;
@@ -94,7 +106,7 @@ pub fn start() {
     // Bottom left
     let mut transform = Transform::default();
     transform.translation = Vec2::new(400.0, 405.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -105,7 +117,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(405.0, 400.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -116,7 +128,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(405.0, 405.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -128,7 +140,7 @@ pub fn start() {
     // Top left
     let mut transform = Transform::default();
     transform.translation = Vec2::new(400.0, 540.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -139,7 +151,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(405.0, 545.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -150,7 +162,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(405.0, 540.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -162,7 +174,7 @@ pub fn start() {
     // Bottom right
     let mut transform = Transform::default();
     transform.translation = Vec2::new(695.0, 405.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -173,7 +185,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(690.0, 400.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -184,7 +196,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(690.0, 405.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -196,7 +208,7 @@ pub fn start() {
     // Top right
     let mut transform = Transform::default();
     transform.translation = Vec2::new(695.0, 540.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -207,7 +219,7 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(690.0, 545.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
     rect.outline_thickness = 0.0;
@@ -218,13 +230,25 @@ pub fn start() {
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(690.0, 540.0);
-    let mut rect = Rect::default();
+    let mut rect = RectangleShape::default();
     rect.size = Vec2::new(5.0, 5.0);
     rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
     rect.outline_thickness = 0.0;
     rect.outline_color = Color::WHITE;
     rect.update(&mut tesselator);
     let drawable = Drawable::Rect(rect);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(400.0, 100.0);
+    transform.origin = Vec2::new(100.0, 100.0);
+    let mut circle = CircleShape::default();
+    circle.radius = 100.0;
+    circle.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
+    circle.outline_thickness = 10.0;
+    circle.outline_color = Color::new(1.0, 1.0, 0.0, 1.0);
+    circle.update(&mut tesselator);
+    let drawable = Drawable::Circle(circle);
     world.spawn((transform, drawable));
 
     let start = Instant::now();
@@ -265,6 +289,19 @@ pub fn start() {
             let t = compute_transformation_matrix(&transform);
             let index_offset = vertices.len() as u16;
             match drawable {
+                Drawable::Circle(circle) => {
+                    for v in circle.vertices() {
+                        let transformed = t * Vec4::from((v.position(), 0.0, 1.0));
+                        let position = [transformed.x, transformed.y];
+                        let color = v.color().to_array();
+                        let vertex = Vertex { position, color };
+                        vertices.push(vertex);
+                    }
+
+                    for i in circle.indices() {
+                        indices.push(index_offset + i);
+                    }
+                }
                 Drawable::Rect(actual_rect) => {
                     for v in actual_rect.vertices() {
                         let transformed = t * Vec4::from((v.position(), 0.0, 1.0));

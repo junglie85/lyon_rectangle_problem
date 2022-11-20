@@ -127,7 +127,7 @@ impl StrokeVertexConstructor<GeometryVertex> for GeometryVertexCtor {
 }
 
 #[derive(Debug, Clone)]
-pub struct Rect {
+pub struct RectangleShape {
     pub size: Vec2,
     pub fill_color: Color,
     pub outline_thickness: f32,
@@ -135,7 +135,7 @@ pub struct Rect {
     geometry: VertexBuffers<GeometryVertex, u16>,
 }
 
-impl Default for Rect {
+impl Default for RectangleShape {
     fn default() -> Self {
         let geometry = VertexBuffers::new();
 
@@ -149,7 +149,7 @@ impl Default for Rect {
     }
 }
 
-impl Rect {
+impl RectangleShape {
     pub fn vertices(&self) -> &[GeometryVertex] {
         &self.geometry.vertices
     }
@@ -159,11 +159,64 @@ impl Rect {
     }
 }
 
-impl Geometry for Rect {
+impl Geometry for RectangleShape {
     fn update(&mut self, tesselator: &mut Tesselator) {
         let rect = Box2D::new(point(0.0, 0.0), point(self.size.x, self.size.y));
         let mut builder = Path::builder();
         builder.add_rectangle(&rect, Winding::Positive);
+        let path = builder.build();
+
+        tesselator.tesselate(
+            &path,
+            self.fill_color,
+            self.outline_color,
+            self.outline_thickness,
+            &mut self.geometry,
+        );
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CircleShape {
+    pub radius: f32,
+    pub fill_color: Color,
+    pub outline_thickness: f32,
+    pub outline_color: Color,
+    geometry: VertexBuffers<GeometryVertex, u16>,
+}
+
+impl Default for CircleShape {
+    fn default() -> Self {
+        let geometry = VertexBuffers::new();
+
+        Self {
+            radius: 0.0,
+            fill_color: Color::WHITE,
+            outline_thickness: 0.0,
+            outline_color: Color::WHITE,
+            geometry,
+        }
+    }
+}
+
+impl CircleShape {
+    pub fn vertices(&self) -> &[GeometryVertex] {
+        &self.geometry.vertices
+    }
+
+    pub fn indices(&self) -> &[u16] {
+        &self.geometry.indices
+    }
+}
+
+impl Geometry for CircleShape {
+    fn update(&mut self, tesselator: &mut Tesselator) {
+        let mut builder = Path::builder();
+        builder.add_circle(
+            point(self.radius, self.radius),
+            self.radius,
+            Winding::Positive,
+        );
         let path = builder.build();
 
         tesselator.tesselate(

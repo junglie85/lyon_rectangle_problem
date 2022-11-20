@@ -1,6 +1,6 @@
 use glam::{Mat4, Vec2, Vec3};
 
-use crate::graphics::Rect;
+use crate::graphics::{CircleShape, RectangleShape};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Transform {
@@ -22,13 +22,18 @@ impl Default for Transform {
 }
 
 pub fn compute_transformation_matrix(t: &Transform) -> Mat4 {
-    let mut transform = Mat4::from_translation(Vec3::new(t.translation.x, t.translation.y, 0.0));
+    let mut transform = Mat4::from_translation(Vec3::from((t.translation - t.origin, 0.0)));
+
+    transform *= Mat4::from_translation(Vec3::from((t.origin, 0.0)));
     transform *= Mat4::from_rotation_z(-t.rotation.to_radians());
+    transform *= Mat4::from_translation(Vec3::from((-t.origin, 0.0)));
+
     transform *= Mat4::from_scale(Vec3::new(t.scale.x, t.scale.y, 0.0));
     transform
 }
 
 #[derive(Debug, Clone)]
 pub enum Drawable {
-    Rect(Rect),
+    Circle(CircleShape),
+    Rect(RectangleShape),
 }
