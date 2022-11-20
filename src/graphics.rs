@@ -5,7 +5,7 @@ use lyon::{
         BuffersBuilder, FillOptions, FillTessellator, FillVertexConstructor, StrokeOptions,
         StrokeTessellator, StrokeVertexConstructor, VertexBuffers,
     },
-    path::{Path, Winding},
+    path::{Path, Polygon, Winding},
 };
 
 pub struct Tesselator {
@@ -48,14 +48,16 @@ impl Tesselator {
             )
             .unwrap();
 
-        self.stroke_tess
-            .tessellate_path(
-                path,
-                &StrokeOptions::tolerance(self.tolerance()).with_line_width(outline_thickness),
-                &mut BuffersBuilder::new(geometry, GeometryVertexCtor(outline_color))
-                    .with_inverted_winding(),
-            )
-            .unwrap();
+        if outline_thickness > 0.0 {
+            self.stroke_tess
+                .tessellate_path(
+                    path,
+                    &StrokeOptions::tolerance(self.tolerance()).with_line_width(outline_thickness),
+                    &mut BuffersBuilder::new(geometry, GeometryVertexCtor(outline_color))
+                        .with_inverted_winding(),
+                )
+                .unwrap();
+        }
     }
 }
 
@@ -127,56 +129,6 @@ impl StrokeVertexConstructor<GeometryVertex> for GeometryVertexCtor {
 }
 
 #[derive(Debug, Clone)]
-pub struct RectangleShape {
-    pub size: Vec2,
-    pub fill_color: Color,
-    pub outline_thickness: f32,
-    pub outline_color: Color,
-    geometry: VertexBuffers<GeometryVertex, u16>,
-}
-
-impl Default for RectangleShape {
-    fn default() -> Self {
-        let geometry = VertexBuffers::new();
-
-        Self {
-            size: Vec2::new(0.0, 0.0),
-            fill_color: Color::WHITE,
-            outline_thickness: 0.0,
-            outline_color: Color::WHITE,
-            geometry,
-        }
-    }
-}
-
-impl RectangleShape {
-    pub fn vertices(&self) -> &[GeometryVertex] {
-        &self.geometry.vertices
-    }
-
-    pub fn indices(&self) -> &[u16] {
-        &self.geometry.indices
-    }
-}
-
-impl Geometry for RectangleShape {
-    fn update(&mut self, tesselator: &mut Tesselator) {
-        let rect = Box2D::new(point(0.0, 0.0), point(self.size.x, self.size.y));
-        let mut builder = Path::builder();
-        builder.add_rectangle(&rect, Winding::Positive);
-        let path = builder.build();
-
-        tesselator.tesselate(
-            &path,
-            self.fill_color,
-            self.outline_color,
-            self.outline_thickness,
-            &mut self.geometry,
-        );
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct CircleShape {
     pub radius: f32,
     pub fill_color: Color,
@@ -217,6 +169,124 @@ impl Geometry for CircleShape {
             self.radius,
             Winding::Positive,
         );
+        let path = builder.build();
+
+        tesselator.tesselate(
+            &path,
+            self.fill_color,
+            self.outline_color,
+            self.outline_thickness,
+            &mut self.geometry,
+        );
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PolygonShape {
+    pub radius: f32,
+    pub point_count: u32,
+    pub fill_color: Color,
+    pub outline_thickness: f32,
+    pub outline_color: Color,
+    geometry: VertexBuffers<GeometryVertex, u16>,
+}
+
+impl Default for PolygonShape {
+    fn default() -> Self {
+        let geometry = VertexBuffers::new();
+
+        Self {
+            radius: 0.0,
+            point_count: 3,
+            fill_color: Color::WHITE,
+            outline_thickness: 0.0,
+            outline_color: Color::WHITE,
+            geometry,
+        }
+    }
+}
+
+impl PolygonShape {
+    pub fn vertices(&self) -> &[GeometryVertex] {
+        &self.geometry.vertices
+    }
+
+    pub fn indices(&self) -> &[u16] {
+        &self.geometry.indices
+    }
+}
+
+impl Geometry for PolygonShape {
+    fn update(&mut self, tesselator: &mut Tesselator) {
+        if self.point_count >= 3 {
+            let points = (0..self.point_count)
+                .map(|i| {
+                    // Position on circumference = (x + r*cos(a), y + r*sin(a))
+                    // Where (x, y) is the center of the circle.
+                    let r = self.radius;
+                    let a = i as f32 / self.point_count as f32 * 360.0_f32.to_radians()
+                        + 90.0_f32.to_radians();
+                    point(r + r * a.cos(), r + r * a.sin())
+                })
+                .collect::<Vec<_>>();
+
+            let mut builder = Path::builder();
+            let polygon = Polygon {
+                points: &points,
+                closed: true,
+            };
+            builder.add_polygon(polygon);
+            let path = builder.build();
+
+            tesselator.tesselate(
+                &path,
+                self.fill_color,
+                self.outline_color,
+                self.outline_thickness,
+                &mut self.geometry,
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RectangleShape {
+    pub size: Vec2,
+    pub fill_color: Color,
+    pub outline_thickness: f32,
+    pub outline_color: Color,
+    geometry: VertexBuffers<GeometryVertex, u16>,
+}
+
+impl Default for RectangleShape {
+    fn default() -> Self {
+        let geometry = VertexBuffers::new();
+
+        Self {
+            size: Vec2::new(0.0, 0.0),
+            fill_color: Color::WHITE,
+            outline_thickness: 0.0,
+            outline_color: Color::WHITE,
+            geometry,
+        }
+    }
+}
+
+impl RectangleShape {
+    pub fn vertices(&self) -> &[GeometryVertex] {
+        &self.geometry.vertices
+    }
+
+    pub fn indices(&self) -> &[u16] {
+        &self.geometry.indices
+    }
+}
+
+impl Geometry for RectangleShape {
+    fn update(&mut self, tesselator: &mut Tesselator) {
+        let rect = Box2D::new(point(0.0, 0.0), point(self.size.x, self.size.y));
+        let mut builder = Path::builder();
+        builder.add_rectangle(&rect, Winding::Positive);
         let path = builder.build();
 
         tesselator.tesselate(

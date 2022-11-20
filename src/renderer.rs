@@ -9,7 +9,7 @@ use crate::graphics::Color;
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Vertex {
-    pub position: [f32; 2],
+    pub position: [f32; 4],
     pub color: [f32; 4],
 }
 
@@ -24,11 +24,11 @@ impl Vertex {
             attributes: &[
                 wgpu::VertexAttribute {
                     offset: 0,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x4,
                     shader_location: 0,
                 },
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     format: wgpu::VertexFormat::Float32x4,
                     shader_location: 1,
                 },

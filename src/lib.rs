@@ -4,12 +4,12 @@ use components::{compute_transformation_matrix, Drawable, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
 use glam::{Vec2, Vec4};
-use graphics::{CircleShape, Color, RectangleShape};
+use graphics::{CircleShape, Color, PolygonShape, RectangleShape};
 use hecs::World;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BufferAddress, BufferUsages,
+    BufferAddress, BufferUsages, COPY_BUFFER_ALIGNMENT,
 };
 use winit::{
     dpi::PhysicalSize,
@@ -251,6 +251,32 @@ pub fn start() {
     let drawable = Drawable::Circle(circle);
     world.spawn((transform, drawable));
 
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(120.0, 450.0);
+    transform.origin = Vec2::new(100.0, 100.0);
+    let mut polygon = PolygonShape::default();
+    polygon.radius = 100.0;
+    polygon.point_count = 5;
+    polygon.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
+    polygon.outline_thickness = 10.0;
+    polygon.outline_color = Color::new(1.0, 0.0, 0.0, 1.0);
+    polygon.update(&mut tesselator);
+    let drawable = Drawable::Polygon(polygon);
+    world.spawn((transform, drawable));
+
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(900.0, 550.0);
+    transform.rotation = 90.0;
+    let mut polygon = PolygonShape::default();
+    polygon.radius = 50.0;
+    polygon.point_count = 3;
+    polygon.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
+    polygon.outline_thickness = 2.0;
+    polygon.outline_color = Color::new(1.0, 0.0, 0.0, 1.0);
+    polygon.update(&mut tesselator);
+    let drawable = Drawable::Polygon(polygon);
+    world.spawn((transform, drawable));
+
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
     let mut frame_count: u32 = 0;
@@ -291,8 +317,7 @@ pub fn start() {
             match drawable {
                 Drawable::Circle(circle) => {
                     for v in circle.vertices() {
-                        let transformed = t * Vec4::from((v.position(), 0.0, 1.0));
-                        let position = [transformed.x, transformed.y];
+                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
                         let color = v.color().to_array();
                         let vertex = Vertex { position, color };
                         vertices.push(vertex);
@@ -302,20 +327,39 @@ pub fn start() {
                         indices.push(index_offset + i);
                     }
                 }
-                Drawable::Rect(actual_rect) => {
-                    for v in actual_rect.vertices() {
-                        let transformed = t * Vec4::from((v.position(), 0.0, 1.0));
-                        let position = [transformed.x, transformed.y];
+                Drawable::Polygon(polygon) => {
+                    // println!();
+                    // dbg!(polygon.vertices());
+                    // println!();
+                    for v in polygon.vertices() {
+                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
                         let color = v.color().to_array();
                         let vertex = Vertex { position, color };
                         vertices.push(vertex);
                     }
 
-                    for i in actual_rect.indices() {
+                    for i in polygon.indices() {
+                        indices.push(index_offset + i);
+                    }
+                }
+                Drawable::Rect(rect) => {
+                    for v in rect.vertices() {
+                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
+                        let color = v.color().to_array();
+                        let vertex = Vertex { position, color };
+                        vertices.push(vertex);
+                    }
+
+                    for i in rect.indices() {
                         indices.push(index_offset + i);
                     }
                 }
             }
+        }
+
+        let unaligned_indices_len = indices.len();
+        for _ in 0..(unaligned_indices_len % COPY_BUFFER_ALIGNMENT as usize) {
+            indices.push(0);
         }
 
         let globals = Globals {
@@ -428,7 +472,7 @@ pub fn start() {
             pass.set_index_buffer(renderer.geometry_ibo.slice(..), wgpu::IndexFormat::Uint16);
             pass.set_vertex_buffer(0, renderer.geometry_vbo.slice(..));
 
-            pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
+            pass.draw_indexed(0..unaligned_indices_len as u32, 0, 0..1);
         }
 
         device.queue.submit(Some(encoder.finish()));

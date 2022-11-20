@@ -14,10 +14,10 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(
-    @location(0) position: vec2<f32>,
+    @location(0) position: vec4<f32>,
     @location(1) color: vec4<f32>,
 ) -> VertexOutput {
-    var clip_position = globals.projection * globals.view * vec4<f32>(position, 0.0, 1.0);
+    var clip_position = globals.projection * globals.view * position;
     
     return VertexOutput(color, clip_position);
 }
