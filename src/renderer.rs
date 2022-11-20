@@ -47,7 +47,7 @@ pub struct Globals {
 unsafe impl bytemuck::Pod for Globals {}
 unsafe impl bytemuck::Zeroable for Globals {}
 
-pub struct Bananas {
+pub struct GraphicsDevice {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
@@ -55,7 +55,7 @@ pub struct Bananas {
     pub size: winit::dpi::PhysicalSize<u32>,
 }
 
-impl Bananas {
+impl GraphicsDevice {
     pub async fn new(window: &Window) -> Self {
         let size = window.inner_size();
 
@@ -271,12 +271,12 @@ impl Renderer {
         }
     }
 
-    pub fn resize(&mut self, bananas: &Bananas) {
-        let depth_texture = bananas.device.create_texture(&wgpu::TextureDescriptor {
+    pub fn resize(&mut self, device: &GraphicsDevice) {
+        let depth_texture = device.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth texture"),
             size: wgpu::Extent3d {
-                width: bananas.config.width,
-                height: bananas.config.height,
+                width: device.config.width,
+                height: device.config.height,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -291,8 +291,8 @@ impl Renderer {
 
         self.multisampled_render_target = if self.msaa_sample_count > 1 {
             Some(Self::create_multisampled_framebuffer(
-                &bananas.device,
-                &bananas.config,
+                &device.device,
+                &device.config,
                 self.msaa_sample_count,
             ))
         } else {

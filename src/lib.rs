@@ -6,7 +6,7 @@ use futures::executor::block_on;
 use glam::{Vec2, Vec4};
 use graphics::{Color, Rect};
 use hecs::World;
-use renderer::{Bananas, Globals, Renderer, Vertex};
+use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BufferAddress, BufferUsages,
@@ -51,10 +51,10 @@ pub fn start() {
     let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
     let sample_count = 4; // 1 = disable MSAA.
 
-    let mut bananas = block_on(Bananas::new(&window));
+    let mut device = block_on(GraphicsDevice::new(&window));
     let mut renderer = Renderer::new(
-        &bananas.device,
-        bananas.config.format,
+        &device.device,
+        device.config.format,
         blend_state,
         sample_count,
         clear_color,
@@ -65,7 +65,7 @@ pub fn start() {
 
     let mut world = World::new();
 
-    let mut camera = Camera::new(bananas.size.width as f32, bananas.size.height as f32);
+    let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
     let mut transform = Transform::default();
     transform.translation = Vec2::new(200.0, 200.0);
@@ -244,8 +244,8 @@ pub fn start() {
             state.size_changed = false;
 
             let physical = state.window_size;
-            bananas.resize(physical);
-            renderer.resize(&bananas);
+            device.resize(physical);
+            renderer.resize(&device);
             camera.resize(physical.width as f32, physical.height as f32);
         }
 
@@ -286,11 +286,11 @@ pub fn start() {
             projection: camera.get_projection().to_cols_array_2d(),
         };
 
-        bananas
+        device
             .queue
             .write_buffer(&renderer.globals_ubo, 0, bytemuck::cast_slice(&[globals]));
 
-        let frame = match bananas.surface.get_current_texture() {
+        let frame = match device.surface.get_current_texture() {
             Ok(texture) => texture,
             Err(e) => {
                 println!("swapchain error: {:?}", e);
@@ -298,19 +298,19 @@ pub fn start() {
             }
         };
 
-        let mut encoder = bananas
+        let mut encoder = device
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("encoder"),
             });
 
-        let vertex_buffer = bananas.device.create_buffer_init(&BufferInitDescriptor {
+        let vertex_buffer = device.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("frame geometry vbo"),
             contents: bytemuck::cast_slice(&vertices),
             usage: BufferUsages::COPY_SRC,
         });
 
-        let index_buffer = bananas.device.create_buffer_init(&BufferInitDescriptor {
+        let index_buffer = device.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("frame geometry ibo"),
             contents: bytemuck::cast_slice(&indices),
             usage: BufferUsages::COPY_SRC,
@@ -319,7 +319,7 @@ pub fn start() {
         if vertices.len() > renderer.max_geometry_vertices
             || indices.len() > renderer.max_geometry_indices
         {
-            renderer.resize_geometry_buffers(&bananas.device, vertices.len(), indices.len())
+            renderer.resize_geometry_buffers(&device.device, vertices.len(), indices.len())
         }
 
         encoder.copy_buffer_to_buffer(
@@ -394,7 +394,7 @@ pub fn start() {
             pass.draw_indexed(0..indices.len() as u32, 0, 0..1);
         }
 
-        bananas.queue.submit(Some(encoder.finish()));
+        device.queue.submit(Some(encoder.finish()));
         frame.present();
 
         frame_count += 1;
