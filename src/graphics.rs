@@ -1,6 +1,6 @@
 use glam::Vec2;
 use lyon::{
-    geom::{point, Box2D},
+    geom::{point, Box2D, LineSegment},
     lyon_tessellation::{
         BuffersBuilder, FillOptions, FillTessellator, FillVertexConstructor, StrokeOptions,
         StrokeTessellator, StrokeVertexConstructor, VertexBuffers,
@@ -54,6 +54,25 @@ impl Tesselator {
                     path,
                     &StrokeOptions::tolerance(self.tolerance()).with_line_width(outline_thickness),
                     &mut BuffersBuilder::new(geometry, GeometryVertexCtor(outline_color))
+                        .with_inverted_winding(),
+                )
+                .unwrap();
+        }
+    }
+
+    fn tesselate_line(
+        &mut self,
+        path: &Path,
+        outline_color: Color,
+        outline_thickness: f32,
+        geometry: &mut VertexBuffers<GeometryVertex, u16>,
+    ) {
+        if outline_thickness > 0.0 {
+            self.stroke_tess
+                .tessellate_path(
+                    path,
+                    &StrokeOptions::tolerance(self.tolerance()).with_line_width(outline_thickness),
+                    &mut BuffersBuilder::new(geometry, GeometryVertexLineCtor(outline_color))
                         .with_inverted_winding(),
                 )
                 .unwrap();
@@ -128,6 +147,18 @@ impl StrokeVertexConstructor<GeometryVertex> for GeometryVertexCtor {
     }
 }
 
+pub struct GeometryVertexLineCtor(Color);
+
+impl StrokeVertexConstructor<GeometryVertex> for GeometryVertexLineCtor {
+    fn new_vertex(&mut self, vertex: lyon::tessellation::StrokeVertex) -> GeometryVertex {
+        let pos = vertex.position();
+        GeometryVertex {
+            position: Vec2::new(pos.x, pos.y),
+            color: self.0,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CircleShape {
     pub radius: f32,
@@ -174,6 +205,65 @@ impl Geometry for CircleShape {
         tesselator.tesselate(
             &path,
             self.fill_color,
+            self.outline_color,
+            self.outline_thickness,
+            &mut self.geometry,
+        );
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LineShape {
+    pub length: f32,
+    pub angle: f32,
+    pub outline_thickness: f32,
+    pub outline_color: Color,
+    geometry: VertexBuffers<GeometryVertex, u16>,
+}
+
+impl Default for LineShape {
+    fn default() -> Self {
+        let geometry = VertexBuffers::new();
+
+        Self {
+            length: 0.0,
+            angle: 0.0,
+            outline_thickness: 0.0,
+            outline_color: Color::WHITE,
+            geometry,
+        }
+    }
+}
+
+impl LineShape {
+    pub fn vertices(&self) -> &[GeometryVertex] {
+        &self.geometry.vertices
+    }
+
+    pub fn indices(&self) -> &[u16] {
+        &self.geometry.indices
+    }
+}
+
+impl Geometry for LineShape {
+    fn update(&mut self, tesselator: &mut Tesselator) {
+        let from = point(0.0, 0.0);
+
+        // Position on circumference = (x + r*cos(a), y + r*sin(a))
+        // Where (x, y) is the center of the circle.
+        let a = (-self.angle).to_radians() + 90.0_f32.to_radians();
+        let to = point(
+            from.x + self.length * a.cos(),
+            from.y + self.length * a.sin(),
+        );
+
+        let mut builder = Path::builder();
+        let line = LineSegment { from, to };
+        builder.add_line_segment(&line);
+        let path = builder.build();
+
+        tesselator.tesselate_line(
+            &path,
             self.outline_color,
             self.outline_thickness,
             &mut self.geometry,

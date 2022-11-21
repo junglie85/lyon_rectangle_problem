@@ -4,7 +4,7 @@ use components::{compute_transformation_matrix, Drawable, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
 use glam::{Vec2, Vec4};
-use graphics::{CircleShape, Color, PolygonShape, RectangleShape};
+use graphics::{CircleShape, Color, LineShape, PolygonShape, RectangleShape};
 use hecs::World;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
@@ -277,6 +277,17 @@ pub fn start() {
     let drawable = Drawable::Polygon(polygon);
     world.spawn((transform, drawable));
 
+    let mut transform = Transform::default();
+    transform.translation = Vec2::new(400.0, 100.0);
+    let mut line = LineShape::default();
+    line.length = 100.0;
+    line.angle = 60.0;
+    line.outline_thickness = 10.0;
+    line.outline_color = Color::new(1.0, 1.0, 0.0, 1.0);
+    line.update(&mut tesselator);
+    let drawable = Drawable::Line(line);
+    world.spawn((transform, drawable));
+
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
     let mut frame_count: u32 = 0;
@@ -327,10 +338,19 @@ pub fn start() {
                         indices.push(index_offset + i);
                     }
                 }
+                Drawable::Line(line) => {
+                    for v in line.vertices() {
+                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
+                        let color = v.color().to_array();
+                        let vertex = Vertex { position, color };
+                        vertices.push(vertex);
+                    }
+
+                    for i in line.indices() {
+                        indices.push(index_offset + i);
+                    }
+                }
                 Drawable::Polygon(polygon) => {
-                    // println!();
-                    // dbg!(polygon.vertices());
-                    // println!();
                     for v in polygon.vertices() {
                         let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
                         let color = v.color().to_array();

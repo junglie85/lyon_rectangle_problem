@@ -1,6 +1,6 @@
 use glam::{Mat4, Vec2, Vec3};
 
-use crate::graphics::{CircleShape, PolygonShape, RectangleShape};
+use crate::graphics::{CircleShape, LineShape, PolygonShape, RectangleShape};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Transform {
@@ -35,6 +35,7 @@ pub fn compute_transformation_matrix(t: &Transform) -> Mat4 {
 #[derive(Debug, Clone)]
 pub enum Drawable {
     Circle(CircleShape),
+    Line(LineShape),
     Polygon(PolygonShape),
     Rect(RectangleShape),
 }
