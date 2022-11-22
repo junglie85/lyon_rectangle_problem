@@ -3,8 +3,8 @@ use std::time::{Duration, Instant};
 use components::{compute_transformation_matrix, Drawable, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
-use glam::{Vec2, Vec4};
-use graphics::{CircleShape, Color, LineShape, PolygonShape, RectangleShape};
+use glam::Vec4;
+use graphics::Color;
 use hecs::World;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
@@ -18,21 +18,25 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::{
-    camera::Camera,
-    graphics::{Geometry, Tesselator},
-};
+use crate::camera::Camera;
 
 const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
 
 mod camera;
-mod components;
-mod graphics;
+pub mod components;
+pub mod graphics;
 mod renderer;
 
-pub fn start() {
+pub trait Game {
+    fn post_init(world: &mut World);
+}
+
+pub fn start<G>()
+where
+    G: Game,
+{
     let mut state = FrameState {
         window_size: PhysicalSize::new(DEFAULT_WINDOW_WIDTH as u32, DEFAULT_WINDOW_HEIGHT as u32),
         size_changed: true,
@@ -60,233 +64,11 @@ pub fn start() {
         clear_color,
     );
 
-    let tolerance = 0.02;
-    let mut tesselator = Tesselator::new(tolerance);
-
     let mut world = World::new();
 
     let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(200.0, 200.0);
-    transform.origin = Vec2::new(100.0, 100.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(200.0, 200.0);
-    rect.fill_color = Color::WHITE;
-    rect.outline_thickness = 1.0;
-    rect.outline_color = Color::BLACK;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(200.0, 200.0);
-    transform.rotation = 30.0;
-    transform.origin = Vec2::new(100.0, 100.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(200.0, 200.0);
-    rect.fill_color = Color::WHITE;
-    rect.outline_thickness = 1.0;
-    rect.outline_color = Color::BLACK;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(400.0, 400.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(300.0, 150.0);
-    rect.fill_color = Color::BLACK;
-    rect.outline_thickness = 5.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    // Bottom left
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(400.0, 405.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(405.0, 400.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(405.0, 405.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    // Top left
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(400.0, 540.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(405.0, 545.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(405.0, 540.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    // Bottom right
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(695.0, 405.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(690.0, 400.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(690.0, 405.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    // Top right
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(695.0, 540.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(690.0, 545.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(690.0, 540.0);
-    let mut rect = RectangleShape::default();
-    rect.size = Vec2::new(5.0, 5.0);
-    rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
-    rect.outline_thickness = 0.0;
-    rect.outline_color = Color::WHITE;
-    rect.update(&mut tesselator);
-    let drawable = Drawable::Rect(rect);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(400.0, 100.0);
-    transform.origin = Vec2::new(100.0, 100.0);
-    let mut circle = CircleShape::default();
-    circle.radius = 100.0;
-    circle.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
-    circle.outline_thickness = 10.0;
-    circle.outline_color = Color::new(1.0, 1.0, 0.0, 1.0);
-    circle.update(&mut tesselator);
-    let drawable = Drawable::Circle(circle);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(120.0, 450.0);
-    transform.origin = Vec2::new(100.0, 100.0);
-    let mut polygon = PolygonShape::default();
-    polygon.radius = 100.0;
-    polygon.point_count = 5;
-    polygon.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
-    polygon.outline_thickness = 10.0;
-    polygon.outline_color = Color::new(1.0, 0.0, 0.0, 1.0);
-    polygon.update(&mut tesselator);
-    let drawable = Drawable::Polygon(polygon);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(900.0, 550.0);
-    transform.rotation = 90.0;
-    let mut polygon = PolygonShape::default();
-    polygon.radius = 50.0;
-    polygon.point_count = 3;
-    polygon.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
-    polygon.outline_thickness = 2.0;
-    polygon.outline_color = Color::new(1.0, 0.0, 0.0, 1.0);
-    polygon.update(&mut tesselator);
-    let drawable = Drawable::Polygon(polygon);
-    world.spawn((transform, drawable));
-
-    let mut transform = Transform::default();
-    transform.translation = Vec2::new(400.0, 100.0);
-    let mut line = LineShape::default();
-    line.length = 100.0;
-    line.angle = 60.0;
-    line.outline_thickness = 10.0;
-    line.outline_color = Color::new(1.0, 1.0, 0.0, 1.0);
-    line.update(&mut tesselator);
-    let drawable = Drawable::Line(line);
-    world.spawn((transform, drawable));
+    G::post_init(&mut world);
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
