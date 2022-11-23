@@ -1,4 +1,5 @@
 use glam::Vec2;
+use hecs::World;
 use papercut::{
     components::{Drawable, Transform},
     graphics::{CircleShape, Color, Geometry, LineShape, PolygonShape, RectangleShape, Tesselator},
@@ -9,10 +10,11 @@ fn main() {
     papercut::start::<GeometryExample>();
 }
 
+#[derive(Default)]
 struct GeometryExample;
 
 impl papercut::Game for GeometryExample {
-    fn post_init(world: &mut hecs::World) {
+    fn post_init(&self, world: &mut World, _window_size: Vec2) {
         let tolerance = 0.02;
         let mut tesselator = Tesselator::new(tolerance);
 

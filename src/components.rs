@@ -2,6 +2,11 @@ use glam::{Mat4, Vec2, Vec3};
 
 use crate::graphics::{CircleShape, LineShape, PolygonShape, RectangleShape};
 
+#[derive(Debug, Clone)]
+pub struct Tag {
+    pub name: String,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Transform {
     pub translation: Vec2,
@@ -39,3 +44,16 @@ pub enum Drawable {
     Polygon(PolygonShape),
     Rect(RectangleShape),
 }
+
+#[derive(Debug, Default, Clone)]
+pub struct CircleCollider {
+    pub radius: f32,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Physics {
+    pub velocity: Vec2,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Input {}

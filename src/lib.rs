@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use components::{compute_transformation_matrix, Drawable, Transform};
 pub use env_logger::init as init_logger;
 use futures::executor::block_on;
-use glam::Vec4;
+use glam::{Vec2, Vec4};
 use graphics::Color;
 use hecs::World;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
@@ -29,14 +29,38 @@ pub mod components;
 pub mod graphics;
 mod renderer;
 
+pub struct EngineSettings {
+    pub frame_rate: u32,
+    pub clear_color: Color,
+}
+
+impl Default for EngineSettings {
+    fn default() -> Self {
+        let frame_rate = 60;
+        let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
+
+        Self {
+            frame_rate,
+            clear_color,
+        }
+    }
+}
+
 pub trait Game {
-    fn post_init(world: &mut World);
+    fn pre_init(&self, _settings: &mut EngineSettings) {}
+    fn post_init(&self, _world: &mut World, _window_size: Vec2) {}
+    fn update(&mut self) {}
 }
 
 pub fn start<G>()
 where
-    G: Game,
+    G: Game + Default,
 {
+    let game = G::default();
+
+    let mut engine_settings = EngineSettings::default();
+    game.pre_init(&mut engine_settings);
+
     let mut state = FrameState {
         window_size: PhysicalSize::new(DEFAULT_WINDOW_WIDTH as u32, DEFAULT_WINDOW_HEIGHT as u32),
         size_changed: true,
@@ -52,7 +76,6 @@ where
         alpha: wgpu::BlendComponent::REPLACE,
     };
 
-    let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
     let sample_count = 4; // 1 = disable MSAA.
 
     let mut device = block_on(GraphicsDevice::new(&window));
@@ -61,14 +84,18 @@ where
         device.config.format,
         blend_state,
         sample_count,
-        clear_color,
+        engine_settings.clear_color,
     );
 
     let mut world = World::new();
 
     let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
-    G::post_init(&mut world);
+    let window_size = Vec2::new(
+        state.window_size.width as f32,
+        state.window_size.height as f32,
+    );
+    game.post_init(&mut world, window_size);
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
