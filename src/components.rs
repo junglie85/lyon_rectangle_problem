@@ -26,6 +26,16 @@ impl Default for Transform {
     }
 }
 
+impl Transform {
+    pub fn from_position(x: f32, y: f32) -> Self {
+        let mut transform = Self::default();
+        transform.translation.x = x;
+        transform.translation.y = y;
+
+        transform
+    }
+}
+
 pub fn compute_transformation_matrix(t: &Transform) -> Mat4 {
     let mut transform = Mat4::from_translation(Vec3::from((t.translation - t.origin, 0.0)));
 
@@ -37,6 +47,13 @@ pub fn compute_transformation_matrix(t: &Transform) -> Mat4 {
     transform
 }
 
+pub fn compute_inverse_transformation_matrix(t: &Transform) -> Mat4 {
+    let mut transform = Mat4::from_scale(Vec3::from((1.0 / t.scale, 0.0)));
+    transform *= Mat4::from_rotation_z(t.rotation.to_radians());
+    transform *= Mat4::from_translation(Vec3::from((t.origin - t.translation, 0.0)));
+    transform
+}
+
 #[derive(Debug, Clone)]
 pub enum Drawable {
     Circle(CircleShape),
@@ -44,16 +61,3 @@ pub enum Drawable {
     Polygon(PolygonShape),
     Rect(RectangleShape),
 }
-
-#[derive(Debug, Default, Clone)]
-pub struct CircleCollider {
-    pub radius: f32,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct Physics {
-    pub velocity: Vec2,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct Input {}

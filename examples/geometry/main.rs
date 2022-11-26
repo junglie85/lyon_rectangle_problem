@@ -2,7 +2,9 @@ use glam::Vec2;
 use hecs::World;
 use papercut::{
     components::{Drawable, Transform},
-    graphics::{CircleShape, Color, Geometry, LineShape, PolygonShape, RectangleShape, Tesselator},
+    graphics::{
+        CircleShape, Color, Geometry, LineShape, PolygonShape, RectangleShape, Tessellator,
+    },
 };
 
 fn main() {
@@ -16,7 +18,7 @@ struct GeometryExample;
 impl papercut::Game for GeometryExample {
     fn post_init(&self, world: &mut World, _window_size: Vec2) {
         let tolerance = 0.02;
-        let mut tesselator = Tesselator::new(tolerance);
+        let mut tessellator = Tessellator::new(tolerance);
 
         let mut transform = Transform::default();
         transform.translation = Vec2::new(200.0, 200.0);
@@ -26,7 +28,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::WHITE;
         rect.outline_thickness = 1.0;
         rect.outline_color = Color::BLACK;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -39,7 +41,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::WHITE;
         rect.outline_thickness = 1.0;
         rect.outline_color = Color::BLACK;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -50,7 +52,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::BLACK;
         rect.outline_thickness = 5.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -62,7 +64,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -73,7 +75,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -84,7 +86,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -96,7 +98,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -107,7 +109,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -118,7 +120,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -130,7 +132,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -141,7 +143,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -152,7 +154,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -164,7 +166,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(1.0, 0.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -175,7 +177,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -186,7 +188,7 @@ impl papercut::Game for GeometryExample {
         rect.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
         rect.outline_thickness = 0.0;
         rect.outline_color = Color::WHITE;
-        rect.update(&mut tesselator);
+        rect.update(&mut tessellator);
         let drawable = Drawable::Rect(rect);
         world.spawn((transform, drawable));
 
@@ -198,7 +200,7 @@ impl papercut::Game for GeometryExample {
         circle.fill_color = Color::new(0.0, 0.0, 1.0, 1.0);
         circle.outline_thickness = 10.0;
         circle.outline_color = Color::new(1.0, 1.0, 0.0, 1.0);
-        circle.update(&mut tesselator);
+        circle.update(&mut tessellator);
         let drawable = Drawable::Circle(circle);
         world.spawn((transform, drawable));
 
@@ -211,7 +213,7 @@ impl papercut::Game for GeometryExample {
         polygon.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
         polygon.outline_thickness = 10.0;
         polygon.outline_color = Color::new(1.0, 0.0, 0.0, 1.0);
-        polygon.update(&mut tesselator);
+        polygon.update(&mut tessellator);
         let drawable = Drawable::Polygon(polygon);
         world.spawn((transform, drawable));
 
@@ -224,7 +226,7 @@ impl papercut::Game for GeometryExample {
         polygon.fill_color = Color::new(0.0, 1.0, 0.0, 1.0);
         polygon.outline_thickness = 2.0;
         polygon.outline_color = Color::new(1.0, 0.0, 0.0, 1.0);
-        polygon.update(&mut tesselator);
+        polygon.update(&mut tessellator);
         let drawable = Drawable::Polygon(polygon);
         world.spawn((transform, drawable));
 
@@ -235,7 +237,7 @@ impl papercut::Game for GeometryExample {
         line.angle = 60.0;
         line.outline_thickness = 10.0;
         line.outline_color = Color::new(1.0, 1.0, 0.0, 1.0);
-        line.update(&mut tesselator);
+        line.update(&mut tessellator);
         let drawable = Drawable::Line(line);
         world.spawn((transform, drawable));
     }

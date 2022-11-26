@@ -13,10 +13,10 @@ use wgpu::{
 };
 use winit::{
     dpi::PhysicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
+use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 
@@ -24,22 +24,25 @@ const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
 
-mod camera;
+pub mod camera;
 pub mod components;
 pub mod graphics;
 mod renderer;
 
 pub struct EngineSettings {
+    pub window_size: Vec2,
     pub frame_rate: u32,
     pub clear_color: Color,
 }
 
 impl Default for EngineSettings {
     fn default() -> Self {
+        let window_size = Vec2::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
         let frame_rate = 60;
         let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
 
         Self {
+            window_size,
             frame_rate,
             clear_color,
         }
@@ -47,34 +50,37 @@ impl Default for EngineSettings {
 }
 
 pub trait Game {
-    fn pre_init(&self, _settings: &mut EngineSettings) {}
-    fn post_init(&self, _world: &mut World, _window_size: Vec2) {}
-    fn update(&mut self) {}
+    fn pre_init(&mut self, _settings: &mut EngineSettings) {}
+    fn post_init(&mut self, _world: &mut World, _settings: &EngineSettings) {}
+    fn update(
+        &mut self,
+        _world: &mut World,
+        input: &WinitInputHelper,
+        _settings: &EngineSettings,
+        _camera: &Camera,
+    ) -> bool {
+        !input.quit()
+    }
 }
 
 pub fn start<G>()
 where
-    G: Game + Default,
+    G: Game + Default + 'static,
 {
-    let game = G::default();
+    let mut game = G::default();
 
     let mut engine_settings = EngineSettings::default();
     game.pre_init(&mut engine_settings);
 
-    let mut state = FrameState {
-        window_size: PhysicalSize::new(DEFAULT_WINDOW_WIDTH as u32, DEFAULT_WINDOW_HEIGHT as u32),
-        size_changed: true,
-        render: false,
-    };
-
     let event_loop = EventLoop::new();
-    let window_builder = WindowBuilder::new().with_inner_size(state.window_size);
+
+    let window_builder = WindowBuilder::new().with_inner_size(PhysicalSize::new(
+        engine_settings.window_size.x as u32,
+        engine_settings.window_size.y as u32,
+    ));
     let window = window_builder.build(&event_loop).unwrap();
 
-    let blend_state = wgpu::BlendState {
-        color: wgpu::BlendComponent::REPLACE,
-        alpha: wgpu::BlendComponent::REPLACE,
-    };
+    let blend_state = wgpu::BlendState::ALPHA_BLENDING;
 
     let sample_count = 4; // 1 = disable MSAA.
 
@@ -87,47 +93,47 @@ where
         engine_settings.clear_color,
     );
 
+    let mut input = WinitInputHelper::new();
     let mut world = World::new();
-
     let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
-    let window_size = Vec2::new(
-        state.window_size.width as f32,
-        state.window_size.height as f32,
-    );
-    game.post_init(&mut world, window_size);
+    game.post_init(&mut world, &engine_settings);
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
     let mut frame_count: u32 = 0;
+    let mut update_count: u32 = 0;
 
     window.request_redraw();
 
     event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Poll;
+
         //////////////////// INPUT ////////////////////
-        if !process_event(event, &window, control_flow, &mut state) {
-            // keep polling inputs.
+        if !input.update(&event) {
+            // MainEventsCleared has not been emitted
             return;
         }
 
-        if state.size_changed {
-            state.size_changed = false;
+        if let Some(physical) = input.window_resized() {
+            engine_settings.window_size.x = physical.width as f32;
+            engine_settings.window_size.y = physical.height as f32;
 
-            let physical = state.window_size;
             device.resize(physical);
             renderer.resize(&device);
             camera.resize(physical.width as f32, physical.height as f32);
         }
 
         //////////////////// UPDATE ////////////////////
-
-        //////////////////// RENDER ////////////////////
-        if !state.render {
+        if !game.update(&mut world, &input, &engine_settings, &camera) {
+            *control_flow = ControlFlow::Exit;
             return;
         }
 
-        state.render = false;
+        update_count += 1;
 
+        //////////////////// RENDER ////////////////////
+        // TODO: Timing if not using vSync (which we are currently).
         let mut vertices = Vec::with_capacity(renderer.max_geometry_vertices); // TODO: set a capacity and draw when reached.
         let mut indices = Vec::with_capacity(renderer.max_geometry_indices); // TODO: set a capacity and draw when reached.
 
@@ -306,77 +312,15 @@ where
 
         device.queue.submit(Some(encoder.finish()));
         frame.present();
+        window.request_redraw();
 
         frame_count += 1;
         let now = Instant::now();
         if now >= next_report {
-            println!("{} FPS", frame_count);
+            println!("{} FPS; {} updates", frame_count, update_count);
             frame_count = 0;
+            update_count = 0;
             next_report = now + Duration::from_secs(1);
         }
     });
-}
-
-struct FrameState {
-    window_size: PhysicalSize<u32>,
-    size_changed: bool,
-    render: bool,
-}
-
-fn process_event(
-    event: Event<()>,
-    window: &Window,
-    control_flow: &mut ControlFlow,
-    state: &mut FrameState,
-) -> bool {
-    match event {
-        Event::RedrawRequested(_) => {
-            state.render = true;
-        }
-        Event::RedrawEventsCleared => {
-            window.request_redraw();
-        }
-        Event::WindowEvent {
-            event: WindowEvent::Destroyed,
-            ..
-        }
-        | Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => {
-            *control_flow = ControlFlow::Exit;
-            return false;
-        }
-        Event::WindowEvent {
-            event: WindowEvent::Resized(size),
-            ..
-        } => {
-            state.window_size = size;
-            state.size_changed = true
-        }
-        Event::WindowEvent {
-            event:
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(key),
-                            ..
-                        },
-                    ..
-                },
-            ..
-        } => match key {
-            VirtualKeyCode::Escape => {
-                *control_flow = ControlFlow::Exit;
-                return false;
-            }
-            _key => {}
-        },
-        _event => {}
-    }
-
-    *control_flow = ControlFlow::Poll;
-
-    true
 }

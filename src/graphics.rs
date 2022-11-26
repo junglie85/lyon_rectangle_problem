@@ -8,13 +8,13 @@ use lyon::{
     path::{Path, Polygon, Winding},
 };
 
-pub struct Tesselator {
+pub struct Tessellator {
     tolerance: f32,
     fill_tess: FillTessellator,
     stroke_tess: StrokeTessellator,
 }
 
-impl Tesselator {
+impl Tessellator {
     pub fn new(tolerance: f32) -> Self {
         let fill_tess = FillTessellator::new();
         let stroke_tess = StrokeTessellator::new();
@@ -88,6 +88,12 @@ pub struct Color {
     pub a: f32,
 }
 
+impl Default for Color {
+    fn default() -> Self {
+        Self::BLACK
+    }
+}
+
 impl Color {
     pub const WHITE: Self = Self::new(1.0, 1.0, 1.0, 1.0);
     pub const BLACK: Self = Self::new(0.0, 0.0, 0.0, 1.0);
@@ -102,7 +108,7 @@ impl Color {
 }
 
 pub trait Geometry {
-    fn update(&mut self, tesselator: &mut Tesselator);
+    fn update(&mut self, tessellator: &mut Tessellator);
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -193,7 +199,7 @@ impl CircleShape {
 }
 
 impl Geometry for CircleShape {
-    fn update(&mut self, tesselator: &mut Tesselator) {
+    fn update(&mut self, tessellator: &mut Tessellator) {
         let mut builder = Path::builder();
         builder.add_circle(
             point(self.radius, self.radius),
@@ -202,7 +208,10 @@ impl Geometry for CircleShape {
         );
         let path = builder.build();
 
-        tesselator.tesselate(
+        self.geometry.vertices.drain(..);
+        self.geometry.indices.drain(..);
+
+        tessellator.tesselate(
             &path,
             self.fill_color,
             self.outline_color,
@@ -246,7 +255,7 @@ impl LineShape {
 }
 
 impl Geometry for LineShape {
-    fn update(&mut self, tesselator: &mut Tesselator) {
+    fn update(&mut self, tessellator: &mut Tessellator) {
         let from = point(0.0, 0.0);
 
         // Position on circumference = (x + r*cos(a), y + r*sin(a))
@@ -262,7 +271,10 @@ impl Geometry for LineShape {
         builder.add_line_segment(&line);
         let path = builder.build();
 
-        tesselator.tesselate_line(
+        self.geometry.vertices.drain(..);
+        self.geometry.indices.drain(..);
+
+        tessellator.tesselate_line(
             &path,
             self.outline_color,
             self.outline_thickness,
@@ -307,7 +319,7 @@ impl PolygonShape {
 }
 
 impl Geometry for PolygonShape {
-    fn update(&mut self, tesselator: &mut Tesselator) {
+    fn update(&mut self, tessellator: &mut Tessellator) {
         if self.point_count >= 3 {
             let points = (0..self.point_count)
                 .map(|i| {
@@ -328,7 +340,10 @@ impl Geometry for PolygonShape {
             builder.add_polygon(polygon);
             let path = builder.build();
 
-            tesselator.tesselate(
+            self.geometry.vertices.drain(..);
+            self.geometry.indices.drain(..);
+
+            tessellator.tesselate(
                 &path,
                 self.fill_color,
                 self.outline_color,
@@ -373,13 +388,16 @@ impl RectangleShape {
 }
 
 impl Geometry for RectangleShape {
-    fn update(&mut self, tesselator: &mut Tesselator) {
+    fn update(&mut self, tessellator: &mut Tessellator) {
         let rect = Box2D::new(point(0.0, 0.0), point(self.size.x, self.size.y));
         let mut builder = Path::builder();
         builder.add_rectangle(&rect, Winding::Positive);
         let path = builder.build();
 
-        tesselator.tesselate(
+        self.geometry.vertices.drain(..);
+        self.geometry.indices.drain(..);
+
+        tessellator.tesselate(
             &path,
             self.fill_color,
             self.outline_color,

@@ -8,11 +8,12 @@ lyon = { version = "1.0" }
 env_logger = "0.9"
 
 wgpu = "0.13"
-winit = "0.26"
+winit = "0.27"
 futures = "0.3"
 bytemuck = "1.2"
 glam = "0.22"
 hecs = "0.9"
+winit_input_helper = "0.13"
 
 [dev-dependencies]
 rand = "0.8"
