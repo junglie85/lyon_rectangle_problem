@@ -4,13 +4,10 @@ use std::{
 };
 
 use glam::{Vec2, Vec4, Vec4Swizzles};
-use hecs::{Entity, EntityBuilder, With, Without, World};
+use hecs::{Entity, EntityBuilder, With, World};
 use papercut::{
     camera::Camera,
-    components::{
-        compute_inverse_transformation_matrix, compute_transformation_matrix, Drawable, Tag,
-        Transform,
-    },
+    components::{compute_transformation_matrix, Drawable, Tag, Transform},
     graphics::{Color, Geometry, PolygonShape, Tessellator},
     EngineSettings, Game,
 };
@@ -125,10 +122,10 @@ impl Game for GeometryWars {
         system_user_input(self, world, input, settings.window_size, camera);
 
         if !self.paused {
+            system_player_spawner();
             system_enemy_spawner(world, self, settings.window_size, &mut tessellator);
             system_movement(world, settings.window_size);
             system_lifespan(world, &mut tessellator);
-            system_special_weapon();
             system_collision(
                 self,
                 world,
@@ -136,6 +133,7 @@ impl Game for GeometryWars {
                 settings.window_size,
                 &mut tessellator,
             );
+            system_small_enemy_spawner(world, self, &mut tessellator);
 
             self.current_frame += 1;
         }
@@ -250,11 +248,12 @@ impl GeometryWars {
         let mut physics = Physics::default();
         physics.velocity = enemy_speed;
 
-        let score = Score {
-            score: vertex_count * 100,
+        let health = Lifespan {
+            total: vertex_count * 100,
+            remaining: vertex_count * 100,
         };
 
-        eb.add_bundle((tag, transform, drawable, collider, physics, score));
+        eb.add_bundle((tag, transform, drawable, collider, physics, health));
 
         self.last_enemy_spawn_time = self.current_frame;
     }
@@ -265,7 +264,7 @@ impl GeometryWars {
         parent_position: Vec2,
         parent_shape: &PolygonShape,
         parent_physics: &Physics,
-        parent_score: &Score,
+        parent_health: &Lifespan,
         lifespan: u32,
         tessellator: &mut Tessellator,
     ) {
@@ -277,7 +276,7 @@ impl GeometryWars {
         let outline_thickness = parent_shape.outline_thickness;
         let point_count = parent_shape.point_count;
         let offset_angle = 360.0 / point_count as f32;
-        let score = parent_score.score * 2;
+        let score = parent_health.total * 2;
 
         for i in 0..point_count {
             let tag = Tag {
@@ -549,8 +548,8 @@ fn system_user_input(
 
             if let Some((x, y)) = user_input.mouse() {
                 let mut tessellator = Tessellator::new(0.02);
-                let parent_position = transform.translation; // - transform.origin;
-                let mouse_transform = Transform::from_position(x, window_size.y - y); // TODO: y is subtracted from window height from what winit gives us.
+                let parent_position = transform.translation;
+                let mouse_transform = Transform::from_position(x, window_size.y - y); // TODO: own input wrapper. y is subtracted from window height from what winit gives us.
 
                 // TODO: ndc * inverse view * inverse projection.
                 let mouse_position = camera.get_view().inverse()
@@ -559,6 +558,7 @@ fn system_user_input(
 
                 if user_input.mouse_pressed(0) {
                     let mut eb = EntityBuilder::new();
+                    // TODO: Make this a system
                     game.spawn_bullet(
                         &mut eb,
                         parent_position,
@@ -569,6 +569,7 @@ fn system_user_input(
                 }
                 if user_input.mouse_pressed(1) {
                     if let Drawable::Polygon(parent_shape) = drawable {
+                        // TODO: Make this a system
                         game.spawn_special_weapon(
                             &mut to_spawn,
                             parent_position,
@@ -585,6 +586,8 @@ fn system_user_input(
         }
     }
 }
+
+fn system_player_spawner() {}
 
 fn system_enemy_spawner(
     world: &mut World,
@@ -687,8 +690,6 @@ fn system_lifespan(world: &mut World, tessellator: &mut Tessellator) {
     }
 }
 
-fn system_special_weapon() {}
-
 fn system_collision(
     game: &mut GeometryWars,
     world: &mut World,
@@ -698,6 +699,7 @@ fn system_collision(
 ) {
     let mut total_score = game.score;
     let mut to_spawn = Vec::new();
+    let mut colliding = HashSet::new();
 
     let mut players = HashMap::new();
     let mut enemies = HashMap::new();
@@ -743,31 +745,8 @@ fn system_collision(
         for (weapon_id, weapon) in bullets.into_iter().chain(special_weapons) {
             for (enemy_id, enemy) in &enemies {
                 if check_collision(&weapon, enemy) {
-                    to_remove.insert(weapon_id);
-                    to_remove.insert(*enemy_id);
-                    if let Ok(mut query) =
-                        world.query_one::<(&Drawable, &Transform, &Physics, &Score)>(*enemy_id)
-                    {
-                        if let Some(components) = query.get() {
-                            if let Drawable::Polygon(parent_shape) = &components.0 {
-                                let parent_position = components.1.translation;
-                                let parent_physics = &components.2;
-                                let parent_score = components.3;
-
-                                game.spawn_small_enemies(
-                                    &mut to_spawn,
-                                    parent_position,
-                                    parent_shape,
-                                    parent_physics,
-                                    &parent_score,
-                                    game.enemy_config.small_lifespan,
-                                    tessellator,
-                                ); // TODO: make this a system - check health before remove, spawn for any dead enemies?
-
-                                total_score += parent_score.score;
-                            }
-                        }
-                    }
+                    colliding.insert(weapon_id);
+                    colliding.insert(*enemy_id);
                 }
             }
 
@@ -783,11 +762,50 @@ fn system_collision(
         }
     }
 
+    for id in colliding {
+        // TODO: world.get health
+        if let Ok((health,)) = world.query_one_mut::<(&mut Lifespan,)>(id) {
+            health.remaining = 0;
+            total_score += health.total;
+        }
+    }
+
     for mut eb in to_spawn {
         world.spawn(eb.build());
     }
 
     game.score = total_score;
+}
+
+fn system_small_enemy_spawner(
+    world: &mut World,
+    game: &GeometryWars,
+    tessellator: &mut Tessellator,
+) {
+    let mut to_spawn = Vec::new();
+
+    for (_id, (tag, shape, transform, physics, health)) in world
+        .query::<(&Tag, &Drawable, &Transform, &Physics, &Lifespan)>()
+        .iter()
+    {
+        if tag.name == ENEMY_TAG && health.remaining <= 0 {
+            if let Drawable::Polygon(parent_shape) = &shape {
+                game.spawn_small_enemies(
+                    &mut to_spawn,
+                    transform.translation,
+                    parent_shape,
+                    physics,
+                    health,
+                    game.enemy_config.small_lifespan,
+                    tessellator,
+                ); // TODO: make this a system - check health before remove, spawn for any dead enemies?
+            }
+        }
+    }
+
+    for mut eb in to_spawn {
+        world.spawn(eb.build());
+    }
 }
 
 fn system_rotate_visible_entities(world: &mut World) {
