@@ -363,7 +363,61 @@ impl GeometryWars {
         eb.add_bundle((tag, transform, drawable, collider, physics, lifespan));
     }
 
-    fn spawn_special_weapon(&self) {}
+    fn spawn_special_weapon(
+        &self,
+        ebs: &mut Vec<EntityBuilder>,
+        parent_position: Vec2,
+        parent_shape: &PolygonShape,
+        tessellator: &mut Tessellator,
+    ) {
+        let respawn_interval = 0;
+        if self.last_special_weapon_spawn_time + respawn_interval < self.current_frame {
+            let position = parent_position;
+            let speed = 1.0;
+            let radius = parent_shape.radius / 2.0;
+            let fill_color = parent_shape.fill_color;
+            let outline_color = parent_shape.outline_color;
+            let outline_thickness = parent_shape.outline_thickness;
+            let entity_count = 18;
+            let offset_angle = 360.0 / entity_count as f32;
+            let lifespan = 180;
+
+            for i in 0..entity_count {
+                let tag = Tag {
+                    name: SPECIAL_WEAPON_TAG.to_string(),
+                };
+
+                let mut transform = Transform::from_position(position.x, position.y);
+                transform.origin = Vec2::new(radius, radius);
+
+                let mut shape = PolygonShape::default();
+                shape.radius = radius;
+                shape.point_count = entity_count;
+                shape.fill_color = fill_color;
+                shape.outline_color = outline_color;
+                shape.outline_thickness = outline_thickness;
+                shape.update(tessellator);
+
+                let drawable = Drawable::Polygon(shape);
+
+                let mut collider = CircleCollider::default();
+                collider.radius = radius;
+
+                let angle = offset_angle * i as f32 * (PI / 180.0);
+                let mut physics = Physics::default();
+                physics.velocity = Vec2::new(speed * angle.cos(), speed * angle.sin());
+
+                let lifespan = Lifespan {
+                    total: lifespan,
+                    remaining: lifespan,
+                };
+
+                let mut eb = EntityBuilder::new();
+                eb.add_bundle((tag, transform, drawable, collider, physics, lifespan));
+                ebs.push(eb);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -461,10 +515,12 @@ fn system_user_input(
         game.paused = !game.paused;
     }
 
-    let mut e = Vec::new();
+    let mut to_spawn = Vec::new();
 
     if !game.paused {
-        for (_id, (input, transform)) in world.query_mut::<(&mut Input, &Transform)>() {
+        for (_id, (input, transform, drawable)) in
+            world.query_mut::<(&mut Input, &Transform, &Drawable)>()
+        {
             if user_input.key_pressed(VirtualKeyCode::W) {
                 input.up = true;
             }
@@ -493,10 +549,10 @@ fn system_user_input(
 
             if let Some((x, y)) = user_input.mouse() {
                 let mut tessellator = Tessellator::new(0.02);
-                let parent_position = transform.translation - transform.origin;
+                let parent_position = transform.translation; // - transform.origin;
                 let mouse_transform = Transform::from_position(x, window_size.y - y); // TODO: y is subtracted from window height from what winit gives us.
 
-                // We can probably just do mouse screen coords * inverse view matrix.
+                // TODO: ndc * inverse view * inverse projection.
                 let mouse_position = camera.get_view().inverse()
                     * compute_transformation_matrix(&mouse_transform)
                     * Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -509,15 +565,22 @@ fn system_user_input(
                         mouse_position.xy(), // TODO: apply world->screen matrix
                         &mut tessellator,
                     );
-                    e.push(eb);
+                    to_spawn.push(eb);
                 }
-                if user_input.mouse_pressed(1) && !user_input.mouse_held(1) {
-                    // input.mouse_right = true;
+                if user_input.mouse_pressed(1) {
+                    if let Drawable::Polygon(parent_shape) = drawable {
+                        game.spawn_special_weapon(
+                            &mut to_spawn,
+                            parent_position,
+                            parent_shape,
+                            &mut tessellator,
+                        );
+                    }
                 }
             }
         }
 
-        for mut i in e.into_iter() {
+        for mut i in to_spawn.into_iter() {
             world.spawn(i.build());
         }
     }
@@ -580,10 +643,6 @@ fn system_movement(world: &mut World, window_size: Vec2) {
                 }
             }
         } else {
-            if tag.name == "special_weapon" {
-                continue;
-            }
-
             future_pos = future_pos + physics.velocity; // TODO: * dt;
 
             if let Drawable::Polygon(shape) = drawable {
