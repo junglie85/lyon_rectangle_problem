@@ -95,13 +95,6 @@ impl Game for GeometryWars {
 
         let mut tessellator = Tessellator::new(0.02);
         self.spawn_player(world, settings.window_size, &mut tessellator);
-        self.spawn_enemy(world, settings.window_size, &mut tessellator);
-        // self.spawn_bullet(
-        //     world,
-        //     Vec2::new(0.0, 0.0),
-        //     Vec2::new(1280.0, 720.0),
-        //     &mut tessellator,
-        // );
 
         self.running = true;
     }
@@ -115,12 +108,15 @@ impl Game for GeometryWars {
     ) -> bool {
         let mut tessellator = Tessellator::new(0.02);
         system_user_input(self, world, input, settings.window_size, camera);
+        system_enemy_spawner(world, self, settings.window_size, &mut tessellator);
         system_movement(world, settings.window_size);
         for (_id, (transform,)) in world.query_mut::<With<(&mut Transform,), &Drawable>>() {
             transform.rotation += 1.0;
         }
         system_lifespan(world, &mut tessellator);
         system_remove_dead_entities(world);
+
+        self.current_frame += 1;
 
         self.running
     }
@@ -163,7 +159,7 @@ impl GeometryWars {
         world.spawn((tag, transform, drawable, collider, physics, input));
     }
 
-    fn spawn_enemy(&self, world: &mut World, window_size: Vec2, tessellator: &mut Tessellator) {
+    fn spawn_enemy(&mut self, world: &mut World, window_size: Vec2, tessellator: &mut Tessellator) {
         let enemy_config = &self.enemy_config;
 
         let mut rng = thread_rng();
@@ -225,7 +221,7 @@ impl GeometryWars {
 
         world.spawn((tag, transform, drawable, collider, physics, score));
 
-        // TODO: game_state.last_enemy_spawn_time = game_state.current_frame;
+        self.last_enemy_spawn_time = self.current_frame;
     }
 
     fn spawn_bullet(
@@ -522,6 +518,17 @@ fn system_lifespan(world: &mut World, tessellator: &mut Tessellator) {
                 shape.update(tessellator);
             }
         }
+    }
+}
+
+fn system_enemy_spawner(
+    world: &mut World,
+    game: &mut GeometryWars,
+    window_size: Vec2,
+    tessellator: &mut Tessellator,
+) {
+    if game.last_enemy_spawn_time + game.enemy_config.spawn_interval < game.current_frame {
+        game.spawn_enemy(world, window_size, tessellator)
     }
 }
 
