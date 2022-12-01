@@ -44,6 +44,7 @@ struct GeometryWars {
 
 impl Game for GeometryWars {
     fn pre_init(&mut self, settings: &mut EngineSettings) {
+        self.window_config.title = "Geometry Wars".to_string();
         self.window_config.size = Vec2::new(1280.0, 720.0);
         self.window_config.frame_limit = 60;
         self.window_config.fullscreen = false;
@@ -51,6 +52,7 @@ impl Game for GeometryWars {
         let clear_color = Color::new(0.0, 0.0, 0.0, 1.0);
 
         // TODO: Fullscreen
+        settings.title = self.window_config.title.clone();
         settings.window_size = self.window_config.size;
         settings.frame_rate = self.window_config.frame_limit;
         settings.clear_color = clear_color;
@@ -422,6 +424,7 @@ impl GeometryWars {
 
 #[derive(Debug, Default)]
 struct WindowConfig {
+    title: String,
     size: Vec2,
     frame_limit: u32,
     fullscreen: bool,

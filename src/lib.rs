@@ -23,6 +23,7 @@ use crate::camera::Camera;
 const ASPECT_RATIO: f32 = 16_f32 / 9_f32;
 pub const DEFAULT_WINDOW_WIDTH: f32 = 1024.0;
 pub const DEFAULT_WINDOW_HEIGHT: f32 = DEFAULT_WINDOW_WIDTH as f32 / ASPECT_RATIO;
+pub const DEFAULT_TITLE: &str = "Papercut2D";
 
 pub mod camera;
 pub mod components;
@@ -30,6 +31,7 @@ pub mod graphics;
 mod renderer;
 
 pub struct EngineSettings {
+    pub title: String,
     pub window_size: Vec2,
     pub frame_rate: u32,
     pub clear_color: Color,
@@ -37,11 +39,13 @@ pub struct EngineSettings {
 
 impl Default for EngineSettings {
     fn default() -> Self {
+        let title = DEFAULT_TITLE.to_string();
         let window_size = Vec2::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
         let frame_rate = 60;
         let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
 
         Self {
+            title,
             window_size,
             frame_rate,
             clear_color,
@@ -74,10 +78,12 @@ where
 
     let event_loop = EventLoop::new();
 
-    let window_builder = WindowBuilder::new().with_inner_size(PhysicalSize::new(
-        engine_settings.window_size.x as u32,
-        engine_settings.window_size.y as u32,
-    ));
+    let window_builder = WindowBuilder::new()
+        .with_title(&engine_settings.title)
+        .with_inner_size(PhysicalSize::new(
+            engine_settings.window_size.x as u32,
+            engine_settings.window_size.y as u32,
+        ));
     let window = window_builder.build(&event_loop).unwrap();
 
     let blend_state = wgpu::BlendState::ALPHA_BLENDING;
