@@ -117,11 +117,13 @@ impl Game for GeometryWars {
         camera: &Camera,
     ) -> bool {
         let mut tessellator = Tessellator::new(0.02);
-        system_user_input(self, world, input, settings.window_size, camera);
+        system_user_input(self, world, input);
 
         if !self.paused {
             system_player_spawner(world, self, settings.window_size, &mut tessellator);
             system_enemy_spawner(world, self, settings.window_size, &mut tessellator);
+            system_bullet_spawner(world, self, settings.window_size, camera, &mut tessellator);
+            system_special_weapon_spawner(world, self, &mut tessellator);
             system_movement(world, settings.window_size);
             system_lifespan(world, &mut tessellator);
             system_collision(world, self);
@@ -485,6 +487,9 @@ pub struct Input {
     down: bool,
     left: bool,
     right: bool,
+    left_button: bool,
+    right_button: bool,
+    mouse_position: Vec2,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -503,13 +508,7 @@ pub struct Lifespan {
     remaining: u32,
 }
 
-fn system_user_input(
-    game: &mut GeometryWars,
-    world: &mut World,
-    user_input: &WinitInputHelper,
-    window_size: Vec2,
-    camera: &Camera,
-) {
+fn system_user_input(game: &mut GeometryWars, world: &mut World, user_input: &WinitInputHelper) {
     if user_input.quit() || user_input.key_pressed(VirtualKeyCode::Escape) {
         game.running = false;
     }
@@ -518,12 +517,8 @@ fn system_user_input(
         game.paused = !game.paused;
     }
 
-    let mut to_spawn = Vec::new();
-
     if !game.paused {
-        for (_id, (input, transform, drawable)) in
-            world.query_mut::<(&mut Input, &Transform, &Drawable)>()
-        {
+        for (_id, input) in world.query_mut::<&mut Input>() {
             if user_input.key_pressed(VirtualKeyCode::W) {
                 input.up = true;
             }
@@ -550,43 +545,18 @@ fn system_user_input(
                 input.right = false;
             }
 
-            if let Some((x, y)) = user_input.mouse() {
-                let mut tessellator = Tessellator::new(0.02);
-                let parent_position = transform.translation;
-                let mouse_transform = Transform::from_position(x, window_size.y - y); // TODO: own input wrapper. y is subtracted from window height from what winit gives us.
-
-                // TODO: ndc * inverse view * inverse projection.
-                let mouse_position = camera.get_view().inverse()
-                    * compute_transformation_matrix(&mouse_transform)
-                    * Vec4::new(0.0, 0.0, 0.0, 1.0);
-
-                if user_input.mouse_pressed(0) {
-                    let mut eb = EntityBuilder::new();
-                    // TODO: Make this a system
-                    game.spawn_bullet(
-                        &mut eb,
-                        parent_position,
-                        mouse_position.xy(), // TODO: apply world->screen matrix
-                        &mut tessellator,
-                    );
-                    to_spawn.push(eb);
-                }
-                if user_input.mouse_pressed(1) {
-                    if let Drawable::Polygon(parent_shape) = drawable {
-                        // TODO: Make this a system
-                        game.spawn_special_weapon(
-                            &mut to_spawn,
-                            parent_position,
-                            parent_shape,
-                            &mut tessellator,
-                        );
-                    }
-                }
+            input.left_button = false;
+            if user_input.mouse_pressed(0) {
+                input.left_button = true;
             }
-        }
+            input.right_button = false;
+            if user_input.mouse_pressed(1) {
+                input.right_button = true;
+            }
 
-        for mut i in to_spawn.into_iter() {
-            world.spawn(i.build());
+            if let Some((x, y)) = user_input.mouse() {
+                input.mouse_position = Vec2::new(x, y);
+            }
         }
     }
 }
@@ -619,6 +589,99 @@ fn system_enemy_spawner(
     if game.last_enemy_spawn_time + game.enemy_config.spawn_interval < game.current_frame {
         let mut eb = EntityBuilder::new();
         game.spawn_enemy(&mut eb, window_size, tessellator);
+        world.spawn(eb.build());
+    }
+}
+
+fn system_small_enemy_spawner(
+    world: &mut World,
+    game: &GeometryWars,
+    tessellator: &mut Tessellator,
+) {
+    let mut to_spawn = Vec::new();
+
+    for (_id, (tag, shape, transform, physics, health, score)) in world
+        .query::<(&Tag, &Drawable, &Transform, &Physics, &Health, &Score)>()
+        .iter()
+    {
+        if tag.name == ENEMY_TAG && health.health <= 0 {
+            if let Drawable::Polygon(parent_shape) = &shape {
+                game.spawn_small_enemies(
+                    &mut to_spawn,
+                    transform.translation,
+                    parent_shape,
+                    physics,
+                    score,
+                    game.enemy_config.small_lifespan,
+                    tessellator,
+                );
+            }
+        }
+    }
+
+    for mut eb in to_spawn {
+        world.spawn(eb.build());
+    }
+}
+
+fn system_bullet_spawner(
+    world: &mut World,
+    game: &GeometryWars,
+    window_size: Vec2,
+    camera: &Camera,
+    tessellator: &mut Tessellator,
+) {
+    let mut to_spawn = Vec::new();
+
+    for (_id, (input, transform)) in world.query_mut::<(&Input, &Transform)>() {
+        if let (true, Vec2 { x, y }) = (input.left_button, input.mouse_position) {
+            let parent_position = transform.translation;
+            let mouse_transform = Transform::from_position(x, window_size.y - y); // TODO: own input wrapper. y is subtracted from window height from what winit gives us.
+
+            // TODO: ndc * inverse view * inverse projection.
+            let mouse_position = camera.get_view().inverse()
+                * compute_transformation_matrix(&mouse_transform)
+                * Vec4::new(0.0, 0.0, 0.0, 1.0);
+
+            let mut eb = EntityBuilder::new();
+            game.spawn_bullet(
+                &mut eb,
+                parent_position,
+                mouse_position.xy(), // TODO: apply world->screen matrix
+                tessellator,
+            );
+            to_spawn.push(eb);
+        }
+    }
+
+    for mut eb in to_spawn {
+        world.spawn(eb.build());
+    }
+}
+
+fn system_special_weapon_spawner(
+    world: &mut World,
+    game: &mut GeometryWars,
+    tessellator: &mut Tessellator,
+) {
+    let mut to_spawn = Vec::new();
+
+    for (_id, (input, transform, drawable)) in world.query_mut::<(&Input, &Transform, &Drawable)>()
+    {
+        let parent_position = transform.translation;
+        if input.right_button {
+            if let Drawable::Polygon(parent_shape) = drawable {
+                game.spawn_special_weapon(
+                    &mut to_spawn,
+                    parent_position,
+                    parent_shape,
+                    tessellator,
+                );
+            }
+        }
+    }
+
+    for mut eb in to_spawn {
         world.spawn(eb.build());
     }
 }
@@ -736,9 +799,6 @@ fn system_collision(world: &mut World, game: &mut GeometryWars) {
                 if check_collision(player, enemy) {
                     colliding.insert(*player_id);
                     colliding.insert(*enemy_id);
-                    // let mut eb = EntityBuilder::new();
-                    // game.spawn_player(&mut eb, window_size, tessellator); // TODO: make this a system, check for any with input?
-                    // to_spawn.push(eb);
                 }
             }
 
@@ -746,9 +806,6 @@ fn system_collision(world: &mut World, game: &mut GeometryWars) {
                 if check_collision(player, enemy) {
                     colliding.insert(*player_id);
                     colliding.insert(*enemy_id);
-                    //     let mut eb = EntityBuilder::new();
-                    //     game.spawn_player(&mut eb, window_size, tessellator); // TODO: make this a system, check for any with input?
-                    //     to_spawn.push(eb);
                 }
             }
         }
@@ -789,37 +846,6 @@ fn system_collision(world: &mut World, game: &mut GeometryWars) {
     }
 
     game.score = total_score;
-}
-
-fn system_small_enemy_spawner(
-    world: &mut World,
-    game: &GeometryWars,
-    tessellator: &mut Tessellator,
-) {
-    let mut to_spawn = Vec::new();
-
-    for (_id, (tag, shape, transform, physics, health, score)) in world
-        .query::<(&Tag, &Drawable, &Transform, &Physics, &Health, &Score)>()
-        .iter()
-    {
-        if tag.name == ENEMY_TAG && health.health <= 0 {
-            if let Drawable::Polygon(parent_shape) = &shape {
-                game.spawn_small_enemies(
-                    &mut to_spawn,
-                    transform.translation,
-                    parent_shape,
-                    physics,
-                    score,
-                    game.enemy_config.small_lifespan,
-                    tessellator,
-                );
-            }
-        }
-    }
-
-    for mut eb in to_spawn {
-        world.spawn(eb.build());
-    }
 }
 
 fn system_rotate_visible_entities(world: &mut World) {
