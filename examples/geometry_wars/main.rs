@@ -44,16 +44,19 @@ struct GeometryWars {
 
 impl Game for GeometryWars {
     fn pre_init(&mut self, settings: &mut EngineSettings) {
+        // TODO: Pass config into engine on creation.
         self.window_config.title = "Geometry Wars".to_string();
         self.window_config.size = Vec2::new(1280.0, 720.0);
         self.window_config.frame_limit = 60;
-        self.window_config.fullscreen = false;
+        self.window_config.fullscreen = true;
 
         let clear_color = Color::new(0.0, 0.0, 0.0, 1.0);
 
-        // TODO: Fullscreen
         settings.title = self.window_config.title.clone();
         settings.window_size = self.window_config.size;
+        if self.window_config.fullscreen {
+            settings.fullscreen = Some(papercut::Fullscreen::Borderless);
+        }
         settings.frame_rate = self.window_config.frame_limit;
         settings.clear_color = clear_color;
     }

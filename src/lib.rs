@@ -30,9 +30,15 @@ pub mod components;
 pub mod graphics;
 mod renderer;
 
+pub enum Fullscreen {
+    Exclusive,
+    Borderless,
+}
+
 pub struct EngineSettings {
     pub title: String,
     pub window_size: Vec2,
+    pub fullscreen: Option<Fullscreen>,
     pub frame_rate: u32,
     pub clear_color: Color,
 }
@@ -41,12 +47,14 @@ impl Default for EngineSettings {
     fn default() -> Self {
         let title = DEFAULT_TITLE.to_string();
         let window_size = Vec2::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+        let fullscreen = None;
         let frame_rate = 60;
         let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
 
         Self {
             title,
             window_size,
+            fullscreen,
             frame_rate,
             clear_color,
         }
@@ -78,13 +86,37 @@ where
 
     let event_loop = EventLoop::new();
 
+    let monitor = event_loop
+        .available_monitors()
+        .next()
+        .expect("no monitors found");
+
+    let fullscreen = match engine_settings.fullscreen {
+        Some(Fullscreen::Borderless) => {
+            Some(winit::window::Fullscreen::Borderless(Some(monitor.clone())))
+        }
+        Some(Fullscreen::Exclusive) => {
+            let mode = monitor.video_modes().next().expect("no modes found");
+            Some(winit::window::Fullscreen::Exclusive(mode.clone()))
+        }
+        _ => None,
+    };
+
     let window_builder = WindowBuilder::new()
         .with_title(&engine_settings.title)
         .with_inner_size(PhysicalSize::new(
             engine_settings.window_size.x as u32,
             engine_settings.window_size.y as u32,
-        ));
+        ))
+        .with_position(monitor.position())
+        .with_visible(false);
     let window = window_builder.build(&event_loop).unwrap();
+    window.set_fullscreen(fullscreen);
+
+    {
+        let size = window.inner_size();
+        engine_settings.window_size = Vec2::new(size.width as f32, size.height as f32);
+    }
 
     let blend_state = wgpu::BlendState::ALPHA_BLENDING;
 
@@ -111,6 +143,7 @@ where
     let mut update_count: u32 = 0;
 
     window.request_redraw();
+    window.set_visible(true);
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
