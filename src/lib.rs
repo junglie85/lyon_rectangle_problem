@@ -30,59 +30,73 @@ pub mod components;
 pub mod graphics;
 mod renderer;
 
+#[derive(Debug)]
 pub enum Fullscreen {
     Exclusive,
     Borderless,
 }
 
-pub struct EngineSettings {
-    pub title: String,
-    pub window_size: Vec2,
-    pub fullscreen: Option<Fullscreen>,
-    pub frame_rate: u32,
-    pub clear_color: Color,
+impl Default for Fullscreen {
+    fn default() -> Self {
+        Fullscreen::Borderless
+    }
 }
 
-impl Default for EngineSettings {
+#[derive(Debug)]
+pub struct WindowConfig {
+    pub title: String,
+    pub size: Vec2,
+    pub fullscreen: Option<Fullscreen>,
+    pub _frame_rate: u32, // TODO: Enable desired framerate to be configured
+}
+
+impl Default for WindowConfig {
     fn default() -> Self {
         let title = DEFAULT_TITLE.to_string();
-        let window_size = Vec2::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
+        let size = Vec2::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT);
         let fullscreen = None;
         let frame_rate = 60;
-        let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
 
         Self {
             title,
-            window_size,
+            size,
             fullscreen,
-            frame_rate,
-            clear_color,
+            _frame_rate: frame_rate,
         }
     }
 }
 
+#[derive(Debug)]
+pub struct RendererConfig {
+    pub clear_color: Color,
+}
+
+impl Default for RendererConfig {
+    fn default() -> Self {
+        let clear_color = Color::new(1.0, 0.0, 1.0, 1.0);
+
+        Self { clear_color }
+    }
+}
+
 pub trait Game {
-    fn pre_init(&mut self, _settings: &mut EngineSettings) {}
-    fn post_init(&mut self, _world: &mut World, _settings: &EngineSettings) {}
+    fn setup(&mut self, _world: &mut World, _window_config: &WindowConfig) {}
     fn update(
         &mut self,
         _world: &mut World,
         input: &WinitInputHelper,
-        _settings: &EngineSettings,
+        _window_config: &WindowConfig,
         _camera: &Camera,
     ) -> bool {
         !input.quit()
     }
 }
 
-pub fn start<G>()
+pub fn start<G>(mut window_config: WindowConfig, renderer_config: RendererConfig)
 where
     G: Game + Default + 'static,
 {
     let mut game = G::default();
-
-    let mut engine_settings = EngineSettings::default();
-    game.pre_init(&mut engine_settings);
 
     let event_loop = EventLoop::new();
 
@@ -91,7 +105,7 @@ where
         .next()
         .expect("no monitors found");
 
-    let fullscreen = match engine_settings.fullscreen {
+    let fullscreen = match window_config.fullscreen {
         Some(Fullscreen::Borderless) => {
             Some(winit::window::Fullscreen::Borderless(Some(monitor.clone())))
         }
@@ -103,10 +117,10 @@ where
     };
 
     let window_builder = WindowBuilder::new()
-        .with_title(&engine_settings.title)
+        .with_title(&window_config.title)
         .with_inner_size(PhysicalSize::new(
-            engine_settings.window_size.x as u32,
-            engine_settings.window_size.y as u32,
+            window_config.size.x as u32,
+            window_config.size.y as u32,
         ))
         .with_position(monitor.position())
         .with_visible(false);
@@ -115,7 +129,7 @@ where
 
     {
         let size = window.inner_size();
-        engine_settings.window_size = Vec2::new(size.width as f32, size.height as f32);
+        window_config.size = Vec2::new(size.width as f32, size.height as f32);
     }
 
     let blend_state = wgpu::BlendState::ALPHA_BLENDING;
@@ -128,14 +142,14 @@ where
         device.config.format,
         blend_state,
         sample_count,
-        engine_settings.clear_color,
+        renderer_config.clear_color,
     );
 
     let mut input = WinitInputHelper::new();
     let mut world = World::new();
     let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
-    game.post_init(&mut world, &engine_settings);
+    game.setup(&mut world, &window_config);
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
@@ -155,8 +169,8 @@ where
         }
 
         if let Some(physical) = input.window_resized() {
-            engine_settings.window_size.x = physical.width as f32;
-            engine_settings.window_size.y = physical.height as f32;
+            window_config.size.x = physical.width as f32;
+            window_config.size.y = physical.height as f32;
 
             device.resize(physical);
             renderer.resize(&device);
@@ -164,7 +178,7 @@ where
         }
 
         //////////////////// UPDATE ////////////////////
-        if !game.update(&mut world, &input, &engine_settings, &camera) {
+        if !game.update(&mut world, &input, &window_config, &camera) {
             *control_flow = ControlFlow::Exit;
             return;
         }

@@ -9,7 +9,7 @@ use papercut::{
     camera::Camera,
     components::{compute_transformation_matrix, Drawable, Tag, Transform},
     graphics::{Color, Geometry, PolygonShape, Tessellator},
-    EngineSettings, Game,
+    Game, RendererConfig, WindowConfig,
 };
 use rand::{thread_rng, Rng};
 use winit::event::VirtualKeyCode;
@@ -22,8 +22,18 @@ const BULLET_TAG: &str = "bullet";
 const SPECIAL_WEAPON_TAG: &str = "special_weapon";
 
 fn main() {
+    let wc = WindowConfig {
+        title: "Geometry Wars".to_string(),
+        size: Vec2::new(1280.0, 720.0),
+        _frame_rate: 60,
+        fullscreen: None,
+    };
+
+    let clear_color = Color::new(0.0, 0.0, 0.0, 1.0);
+    let rc = RendererConfig { clear_color };
+
     papercut::init_logger();
-    papercut::start::<GeometryWars>();
+    papercut::start::<GeometryWars>(wc, rc);
 }
 
 #[derive(Default)]
@@ -35,7 +45,6 @@ struct GeometryWars {
     last_special_weapon_spawn_time: u32,
     paused: bool,
     running: bool,
-    window_config: WindowConfig,
     font_config: FontConfig,
     player_config: PlayerConfig,
     enemy_config: EnemyConfig,
@@ -43,25 +52,7 @@ struct GeometryWars {
 }
 
 impl Game for GeometryWars {
-    fn pre_init(&mut self, settings: &mut EngineSettings) {
-        // TODO: Pass config into engine on creation.
-        self.window_config.title = "Geometry Wars".to_string();
-        self.window_config.size = Vec2::new(1280.0, 720.0);
-        self.window_config.frame_limit = 60;
-        self.window_config.fullscreen = true;
-
-        let clear_color = Color::new(0.0, 0.0, 0.0, 1.0);
-
-        settings.title = self.window_config.title.clone();
-        settings.window_size = self.window_config.size;
-        if self.window_config.fullscreen {
-            settings.fullscreen = Some(papercut::Fullscreen::Borderless);
-        }
-        settings.frame_rate = self.window_config.frame_limit;
-        settings.clear_color = clear_color;
-    }
-
-    fn post_init(&mut self, world: &mut World, settings: &EngineSettings) {
+    fn setup(&mut self, world: &mut World, window_config: &WindowConfig) {
         let font_config = FontConfig {
             file: String::from("fonts/arial.ttf"),
             size: 24,
@@ -108,7 +99,7 @@ impl Game for GeometryWars {
 
         let mut tessellator = Tessellator::new(0.02);
         let mut eb = EntityBuilder::new();
-        self.spawn_player(&mut eb, settings.window_size, &mut tessellator);
+        self.spawn_player(&mut eb, window_config.size, &mut tessellator);
         world.spawn(eb.build());
 
         self.running = true;
@@ -118,18 +109,18 @@ impl Game for GeometryWars {
         &mut self,
         world: &mut World,
         input: &WinitInputHelper,
-        settings: &EngineSettings,
+        window_config: &WindowConfig,
         camera: &Camera,
     ) -> bool {
         let mut tessellator = Tessellator::new(0.02);
         system_user_input(self, world, input);
 
         if !self.paused {
-            system_player_spawner(world, self, settings.window_size, &mut tessellator);
-            system_enemy_spawner(world, self, settings.window_size, &mut tessellator);
-            system_bullet_spawner(world, self, settings.window_size, camera, &mut tessellator);
+            system_player_spawner(world, self, window_config.size, &mut tessellator);
+            system_enemy_spawner(world, self, window_config.size, &mut tessellator);
+            system_bullet_spawner(world, self, window_config.size, camera, &mut tessellator);
             system_special_weapon_spawner(world, self, &mut tessellator);
-            system_movement(world, settings.window_size);
+            system_movement(world, window_config.size);
             system_lifespan(world, &mut tessellator);
             system_collision(world, self);
             system_small_enemy_spawner(world, self, &mut tessellator);
@@ -423,14 +414,6 @@ impl GeometryWars {
             self.last_special_weapon_spawn_time = self.current_frame;
         }
     }
-}
-
-#[derive(Debug, Default)]
-struct WindowConfig {
-    title: String,
-    size: Vec2,
-    frame_limit: u32,
-    fullscreen: bool,
 }
 
 #[derive(Debug, Default)]

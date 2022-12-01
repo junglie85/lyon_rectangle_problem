@@ -104,6 +104,7 @@ impl GraphicsDevice {
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        // TODO: Scale on resize, don't show more of the world!
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
