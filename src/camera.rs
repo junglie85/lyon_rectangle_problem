@@ -20,6 +20,14 @@ impl Camera {
         }
     }
 
+    pub fn width(&self) -> f32 {
+        self.width
+    }
+
+    pub fn height(&self) -> f32 {
+        self.height
+    }
+
     pub fn resize(&mut self, width: f32, height: f32) {
         let projection = glam::Mat4::orthographic_lh(0.0, width, 0.0, height, -1.0, 10.0);
 

@@ -3,17 +3,17 @@ use std::{
     f32::consts::PI,
 };
 
-use glam::{Vec2, Vec4, Vec4Swizzles};
+use glam::Vec2;
 use hecs::{EntityBuilder, With, World};
 use papercut::{
     camera::Camera,
-    components::{compute_transformation_matrix, Drawable, Tag, Transform},
+    components::{Drawable, Tag, Transform},
     graphics::{Color, Geometry, PolygonShape, Tessellator},
+    input::InputHelper,
     Game, RendererConfig, WindowConfig,
 };
 use rand::{thread_rng, Rng};
 use winit::event::VirtualKeyCode;
-use winit_input_helper::WinitInputHelper;
 
 const PLAYER_TAG: &str = "player";
 const ENEMY_TAG: &str = "enemy";
@@ -108,17 +108,17 @@ impl Game for GeometryWars {
     fn update(
         &mut self,
         world: &mut World,
-        input: &WinitInputHelper,
+        input: &InputHelper,
         window_config: &WindowConfig,
         camera: &Camera,
     ) -> bool {
         let mut tessellator = Tessellator::new(0.02);
-        system_user_input(self, world, input);
+        system_user_input(self, world, input, camera);
 
         if !self.paused {
             system_player_spawner(world, self, window_config.size, &mut tessellator);
             system_enemy_spawner(world, self, window_config.size, &mut tessellator);
-            system_bullet_spawner(world, self, window_config.size, camera, &mut tessellator);
+            system_bullet_spawner(world, self, &mut tessellator);
             system_special_weapon_spawner(world, self, &mut tessellator);
             system_movement(world, window_config.size);
             system_lifespan(world, &mut tessellator);
@@ -314,8 +314,8 @@ impl GeometryWars {
     fn spawn_bullet(
         &self,
         eb: &mut EntityBuilder,
-        parent_position: Vec2,
-        mouse_position: Vec2,
+        from: Vec2,
+        to: Vec2,
         tessellator: &mut Tessellator,
     ) {
         let bullet_config = &self.bullet_config;
@@ -324,7 +324,7 @@ impl GeometryWars {
             name: BULLET_TAG.to_string(),
         };
 
-        let mut transform = Transform::from_position(parent_position.x, parent_position.y);
+        let mut transform = Transform::from_position(from.x, from.y);
         transform.origin = Vec2::new(
             bullet_config.shape_radius as f32,
             bullet_config.shape_radius as f32,
@@ -343,7 +343,7 @@ impl GeometryWars {
         let mut collider = CircleCollider::default();
         collider.radius = bullet_config.collision_radius as f32;
 
-        let bullet_direction = (mouse_position - parent_position).normalize_or_zero();
+        let bullet_direction = (to - from).normalize_or_zero();
         let bullet_speed = Vec2::new(bullet_config.speed, bullet_config.speed);
         let bullet_velocity = bullet_direction * bullet_speed;
         let mut physics = Physics::default();
@@ -478,7 +478,8 @@ pub struct Input {
     right: bool,
     left_button: bool,
     right_button: bool,
-    mouse_position: Vec2,
+    mouse_screen_position: Vec2,
+    mouse_world_position: Vec2,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -497,7 +498,12 @@ pub struct Lifespan {
     remaining: u32,
 }
 
-fn system_user_input(game: &mut GeometryWars, world: &mut World, user_input: &WinitInputHelper) {
+fn system_user_input(
+    game: &mut GeometryWars,
+    world: &mut World,
+    user_input: &InputHelper,
+    camera: &Camera,
+) {
     if user_input.quit() || user_input.key_pressed(VirtualKeyCode::Escape) {
         game.running = false;
     }
@@ -543,9 +549,8 @@ fn system_user_input(game: &mut GeometryWars, world: &mut World, user_input: &Wi
                 input.right_button = true;
             }
 
-            if let Some((x, y)) = user_input.mouse() {
-                input.mouse_position = Vec2::new(x, y);
-            }
+            input.mouse_screen_position = user_input.mouse_in_screen();
+            input.mouse_world_position = user_input.mouse_in_world(camera);
         }
     }
 }
@@ -613,32 +618,16 @@ fn system_small_enemy_spawner(
     }
 }
 
-fn system_bullet_spawner(
-    world: &mut World,
-    game: &GeometryWars,
-    window_size: Vec2,
-    camera: &Camera,
-    tessellator: &mut Tessellator,
-) {
+fn system_bullet_spawner(world: &mut World, game: &GeometryWars, tessellator: &mut Tessellator) {
     let mut to_spawn = Vec::new();
 
     for (_id, (input, transform)) in world.query_mut::<(&Input, &Transform)>() {
-        if let (true, Vec2 { x, y }) = (input.left_button, input.mouse_position) {
+        if input.left_button {
             let parent_position = transform.translation;
-            let mouse_transform = Transform::from_position(x, window_size.y - y); // TODO: own input wrapper. y is subtracted from window height from what winit gives us.
-
-            // TODO: ndc * inverse view * inverse projection.
-            let mouse_position = camera.get_view().inverse()
-                * compute_transformation_matrix(&mouse_transform)
-                * Vec4::new(0.0, 0.0, 0.0, 1.0);
+            let mouse_position = input.mouse_world_position;
 
             let mut eb = EntityBuilder::new();
-            game.spawn_bullet(
-                &mut eb,
-                parent_position,
-                mouse_position.xy(), // TODO: apply world->screen matrix
-                tessellator,
-            );
+            game.spawn_bullet(&mut eb, parent_position, mouse_position, tessellator);
             to_spawn.push(eb);
         }
     }

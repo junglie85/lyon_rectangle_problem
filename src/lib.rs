@@ -6,6 +6,7 @@ use futures::executor::block_on;
 use glam::{Vec2, Vec4};
 use graphics::Color;
 use hecs::World;
+use input::InputHelper;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -28,6 +29,7 @@ pub const DEFAULT_TITLE: &str = "Papercut2D";
 pub mod camera;
 pub mod components;
 pub mod graphics;
+pub mod input;
 mod renderer;
 
 #[derive(Debug)]
@@ -84,7 +86,7 @@ pub trait Game {
     fn update(
         &mut self,
         _world: &mut World,
-        input: &WinitInputHelper,
+        input: &InputHelper,
         _window_config: &WindowConfig,
         _camera: &Camera,
     ) -> bool {
@@ -145,7 +147,7 @@ where
         renderer_config.clear_color,
     );
 
-    let mut input = WinitInputHelper::new();
+    let mut input_helper = WinitInputHelper::new();
     let mut world = World::new();
     let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
@@ -163,12 +165,12 @@ where
         *control_flow = ControlFlow::Poll;
 
         //////////////////// INPUT ////////////////////
-        if !input.update(&event) {
+        if !input_helper.update(&event) {
             // MainEventsCleared has not been emitted
             return;
         }
 
-        if let Some(physical) = input.window_resized() {
+        if let Some(physical) = input_helper.window_resized() {
             window_config.size.x = physical.width as f32;
             window_config.size.y = physical.height as f32;
 
@@ -178,6 +180,7 @@ where
         }
 
         //////////////////// UPDATE ////////////////////
+        let input = InputHelper::new(&input_helper);
         if !game.update(&mut world, &input, &window_config, &camera) {
             *control_flow = ControlFlow::Exit;
             return;
