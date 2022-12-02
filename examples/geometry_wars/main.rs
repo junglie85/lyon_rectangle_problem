@@ -549,7 +549,7 @@ fn system_user_input(
                 input.right_button = true;
             }
 
-            input.mouse_screen_position = user_input.mouse_in_screen();
+            input.mouse_screen_position = user_input.mouse_in_viewport();
             input.mouse_world_position = user_input.mouse_in_world(camera);
         }
     }

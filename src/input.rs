@@ -1,10 +1,7 @@
 use glam::{Vec2, Vec4, Vec4Swizzles};
 use winit_input_helper::WinitInputHelper;
 
-use crate::{
-    camera::Camera,
-    components::{compute_transformation_matrix, Transform},
-};
+use crate::camera::Camera;
 
 pub struct InputHelper<'frame> {
     winit_helper: &'frame WinitInputHelper,
@@ -33,20 +30,23 @@ impl<'frame> InputHelper<'frame> {
         self.winit_helper.mouse_released(button)
     }
 
-    pub fn mouse_in_screen(&self) -> Vec2 {
+    pub fn mouse_in_viewport(&self) -> Vec2 {
         let (x, y) = self.winit_helper.mouse().unwrap_or_default();
 
         Vec2::new(x, y)
     }
 
     pub fn mouse_in_world(&self, camera: &Camera) -> Vec2 {
-        let Vec2 { x, y } = self.mouse_in_screen();
-        let mouse_transform = Transform::from_position(x, camera.height() - y);
+        let viewport_position = self.mouse_in_viewport();
+        let viewport_dimensions = Vec2::new(camera.width(), camera.height());
+        let mut ndc = viewport_position / viewport_dimensions * 2.0 - 1.0;
+        ndc.y *= -1.0;
+        let ndc = Vec4::from((ndc, 1.0, 1.0));
 
-        // TODO: ndc * inverse view * inverse projection.
-        let mouse_position = camera.get_view().inverse()
-            * compute_transformation_matrix(&mouse_transform)
-            * Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let inverse_projection = camera.get_projection().inverse();
+        let inverse_view = camera.get_view().inverse();
+
+        let mouse_position = inverse_view * inverse_projection * ndc;
 
         mouse_position.xy()
     }
