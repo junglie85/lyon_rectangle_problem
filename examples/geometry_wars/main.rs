@@ -9,11 +9,10 @@ use papercut::{
     camera::Camera,
     components::{Drawable, Tag, Transform},
     graphics::{Color, Geometry, PolygonShape, Tessellator},
-    input::InputHelper,
+    input::{InputHelper, KeyCode, MouseButton},
     Game, RendererConfig, WindowConfig,
 };
 use rand::{thread_rng, Rng};
-use winit::event::VirtualKeyCode;
 
 const PLAYER_TAG: &str = "player";
 const ENEMY_TAG: &str = "enemy";
@@ -504,48 +503,48 @@ fn system_user_input(
     user_input: &InputHelper,
     camera: &Camera,
 ) {
-    if user_input.quit() || user_input.key_pressed(VirtualKeyCode::Escape) {
+    if user_input.quit() || user_input.key_pressed(KeyCode::Escape) {
         game.running = false;
     }
 
-    if user_input.key_pressed(VirtualKeyCode::P) {
+    if user_input.key_pressed(KeyCode::P) {
         game.paused = !game.paused;
     }
 
     if !game.paused {
         for (_id, input) in world.query_mut::<&mut Input>() {
-            if user_input.key_pressed(VirtualKeyCode::W) {
+            if user_input.key_pressed(KeyCode::W) {
                 input.up = true;
             }
-            if user_input.key_pressed(VirtualKeyCode::A) {
+            if user_input.key_pressed(KeyCode::A) {
                 input.left = true;
             }
-            if user_input.key_pressed(VirtualKeyCode::S) {
+            if user_input.key_pressed(KeyCode::S) {
                 input.down = true;
             }
-            if user_input.key_pressed(VirtualKeyCode::D) {
+            if user_input.key_pressed(KeyCode::D) {
                 input.right = true;
             }
 
-            if user_input.key_released(VirtualKeyCode::W) {
+            if user_input.key_released(KeyCode::W) {
                 input.up = false;
             }
-            if user_input.key_released(VirtualKeyCode::A) {
+            if user_input.key_released(KeyCode::A) {
                 input.left = false;
             }
-            if user_input.key_released(VirtualKeyCode::S) {
+            if user_input.key_released(KeyCode::S) {
                 input.down = false;
             }
-            if user_input.key_released(VirtualKeyCode::D) {
+            if user_input.key_released(KeyCode::D) {
                 input.right = false;
             }
 
             input.left_button = false;
-            if user_input.mouse_pressed(0) {
+            if user_input.mouse_pressed(MouseButton::Left) {
                 input.left_button = true;
             }
             input.right_button = false;
-            if user_input.mouse_pressed(1) {
+            if user_input.mouse_pressed(MouseButton::Right) {
                 input.right_button = true;
             }
 
