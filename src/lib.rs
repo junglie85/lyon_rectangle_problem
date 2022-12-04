@@ -12,11 +12,7 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BufferAddress, BufferUsages, COPY_BUFFER_ALIGNMENT,
 };
-use winit::{
-    dpi::PhysicalSize,
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
+use winit::{dpi::PhysicalSize, event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
@@ -186,7 +182,7 @@ where
     window.set_visible(true);
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+        control_flow.set_poll();
 
         //////////////////// INPUT ////////////////////
         if !input_helper.update(&event) {
@@ -207,7 +203,7 @@ where
         let input = InputHelper::new(&input_helper);
         let dt = Duration::from_secs_f32(1.0 / 60.0);
         if !game.on_update(&mut world, &input, &mut ctx, &camera, dt) {
-            *control_flow = ControlFlow::Exit;
+            control_flow.set_exit();
             return;
         }
 
