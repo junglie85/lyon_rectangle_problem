@@ -81,13 +81,29 @@ impl Default for RendererConfig {
     }
 }
 
+#[derive(Debug)]
+pub struct Context {
+    window_title: String,
+    window_size: Vec2,
+}
+
+impl<'frame> Context {
+    pub fn window_size(&self) -> Vec2 {
+        self.window_size
+    }
+
+    pub fn set_window_title(&mut self, title: impl Into<String>) {
+        self.window_title = title.into();
+    }
+}
+
 pub trait Game {
-    fn setup(&mut self, _world: &mut World, _window_config: &WindowConfig) {}
-    fn update(
+    fn on_create(&mut self, _world: &mut World, _ctx: &mut Context) {}
+    fn on_update(
         &mut self,
         _world: &mut World,
         input: &InputHelper,
-        _window_config: &WindowConfig,
+        _ctx: &mut Context,
         _camera: &Camera,
     ) -> bool {
         !input.quit()
@@ -151,12 +167,19 @@ where
     let mut world = World::new();
     let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
-    game.setup(&mut world, &window_config);
+    let mut ctx = Context {
+        window_title: window_config.title,
+        window_size: window_config.size,
+    };
+
+    game.on_create(&mut world, &mut ctx);
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
     let mut frame_count: u32 = 0;
+    let mut fps = 0_u32;
     let mut update_count: u32 = 0;
+    let mut ups = 0_u32;
 
     window.request_redraw();
     window.set_visible(true);
@@ -171,8 +194,8 @@ where
         }
 
         if let Some(physical) = input_helper.window_resized() {
-            window_config.size.x = physical.width as f32;
-            window_config.size.y = physical.height as f32;
+            ctx.window_size.x = physical.width as f32;
+            ctx.window_size.y = physical.height as f32;
 
             device.resize(physical);
             renderer.resize(&device);
@@ -181,7 +204,7 @@ where
 
         //////////////////// UPDATE ////////////////////
         let input = InputHelper::new(&input_helper);
-        if !game.update(&mut world, &input, &window_config, &camera) {
+        if !game.on_update(&mut world, &input, &mut ctx, &camera) {
             *control_flow = ControlFlow::Exit;
             return;
         }
@@ -373,10 +396,15 @@ where
         frame_count += 1;
         let now = Instant::now();
         if now >= next_report {
-            println!("{} FPS; {} updates", frame_count, update_count);
+            fps = frame_count;
+            ups = update_count;
             frame_count = 0;
             update_count = 0;
             next_report = now + Duration::from_secs(1);
         }
+        window.set_title(&format!(
+            "{} | FPS: {}, UPS: {}",
+            ctx.window_title, fps, ups
+        ));
     });
 }

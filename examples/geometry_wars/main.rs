@@ -10,7 +10,7 @@ use papercut::{
     components::{Drawable, Tag, Transform},
     graphics::{Color, Geometry, PolygonShape, Tessellator},
     input::{InputHelper, KeyCode, MouseButton},
-    Game, RendererConfig, WindowConfig,
+    Context, Game, RendererConfig, WindowConfig,
 };
 use rand::{thread_rng, Rng};
 
@@ -51,7 +51,7 @@ struct GeometryWars {
 }
 
 impl Game for GeometryWars {
-    fn setup(&mut self, world: &mut World, window_config: &WindowConfig) {
+    fn on_create(&mut self, world: &mut World, ctx: &mut Context) {
         let font_config = FontConfig {
             file: String::from("fonts/arial.ttf"),
             size: 24,
@@ -98,28 +98,28 @@ impl Game for GeometryWars {
 
         let mut tessellator = Tessellator::new(0.02);
         let mut eb = EntityBuilder::new();
-        self.spawn_player(&mut eb, window_config.size, &mut tessellator);
+        self.spawn_player(&mut eb, ctx.window_size(), &mut tessellator);
         world.spawn(eb.build());
 
         self.running = true;
     }
 
-    fn update(
+    fn on_update(
         &mut self,
         world: &mut World,
         input: &InputHelper,
-        window_config: &WindowConfig,
+        ctx: &mut Context,
         camera: &Camera,
     ) -> bool {
         let mut tessellator = Tessellator::new(0.02);
         system_user_input(self, world, input, camera);
 
         if !self.paused {
-            system_player_spawner(world, self, window_config.size, &mut tessellator);
-            system_enemy_spawner(world, self, window_config.size, &mut tessellator);
+            system_player_spawner(world, self, ctx.window_size(), &mut tessellator);
+            system_enemy_spawner(world, self, ctx.window_size(), &mut tessellator);
             system_bullet_spawner(world, self, &mut tessellator);
             system_special_weapon_spawner(world, self, &mut tessellator);
-            system_movement(world, window_config.size);
+            system_movement(world, ctx.window_size());
             system_lifespan(world, &mut tessellator);
             system_collision(world, self);
             system_small_enemy_spawner(world, self, &mut tessellator);
@@ -130,7 +130,7 @@ impl Game for GeometryWars {
         system_rotate_visible_entities(world);
         system_remove_dead_entities(world);
 
-        println!("Score: {}", self.score);
+        ctx.set_window_title(format!("Geometry Wars - Score: {}", self.score));
 
         self.running
     }
@@ -750,6 +750,8 @@ fn system_lifespan(world: &mut World, tessellator: &mut Tessellator) {
 }
 
 fn system_collision(world: &mut World, game: &mut GeometryWars) {
+    // TODO: Enemies should only spawn small enemies if they have been shot, not on a collision.
+    // TODO: Score should only increase if enemies have been shot, not on a collision.
     let mut colliding = HashSet::new();
 
     let mut players = HashMap::new();

@@ -5,7 +5,7 @@ use papercut::{
     graphics::{
         CircleShape, Color, Geometry, LineShape, PolygonShape, RectangleShape, Tessellator,
     },
-    RendererConfig, WindowConfig,
+    Context, RendererConfig, WindowConfig,
 };
 
 fn main() {
@@ -20,7 +20,7 @@ fn main() {
 struct GeometryExample;
 
 impl papercut::Game for GeometryExample {
-    fn setup(&mut self, world: &mut World, _window_config: &WindowConfig) {
+    fn on_create(&mut self, world: &mut World, _ctx: &mut Context) {
         let tolerance = 0.02;
         let mut tessellator = Tessellator::new(tolerance);
 
