@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     f32::consts::PI,
+    time::Duration,
 };
 
 use glam::Vec2;
@@ -39,9 +40,9 @@ fn main() {
 struct GeometryWars {
     // TODO: Move these into the world?
     score: u32,
-    current_frame: u32,
-    last_enemy_spawn_time: u32,
-    last_special_weapon_spawn_time: u32,
+    running_time: Duration,
+    last_enemy_spawn_time: Duration,
+    last_special_weapon_spawn_time: Duration,
     paused: bool,
     running: bool,
     font_config: FontConfig,
@@ -62,7 +63,7 @@ impl Game for GeometryWars {
         let player_config = PlayerConfig {
             shape_radius: 32,
             collision_radius: 32,
-            speed: 5.0,
+            speed: 250.0,
             fill_color: Color::new(0.02, 0.02, 0.02, 1.0),
             outline_color: Color::new(1.0, 0.0, 0.0, 1.0),
             outline_thicknes: 4,
@@ -73,26 +74,26 @@ impl Game for GeometryWars {
         let enemy_config = EnemyConfig {
             shape_radius: 32,
             collision_radius: 32,
-            min_speed: 3.0,
-            max_speed: 3.0,
+            min_speed: 150.0,
+            max_speed: 250.0,
             outline_color: Color::new(1.0, 1.0, 1.0, 1.0),
             outline_thicknes: 2,
             min_vertices: 3,
             max_vertices: 8,
-            small_lifespan: 90,
-            spawn_interval: 120,
+            small_lifespan: Duration::from_secs_f32(1.5),
+            spawn_interval: Duration::from_secs_f32(2.0),
         };
         self.enemy_config = enemy_config;
 
         let bullet_config = BulletConfig {
             shape_radius: 10,
             collision_radius: 10,
-            speed: 20.0,
+            speed: 800.0,
             fill_color: Color::new(1.0, 1.0, 1.0, 1.0),
             outline_color: Color::new(1.0, 1.0, 1.0, 1.0),
             outline_thicknes: 2,
             vertices: 20,
-            lifespan: 90,
+            lifespan: Duration::from_secs_f32(1.5),
         };
         self.bullet_config = bullet_config;
 
@@ -110,6 +111,7 @@ impl Game for GeometryWars {
         input: &InputHelper,
         ctx: &mut Context,
         camera: &Camera,
+        dt: Duration,
     ) -> bool {
         let mut tessellator = Tessellator::new(0.02);
         system_user_input(self, world, input, camera);
@@ -119,15 +121,15 @@ impl Game for GeometryWars {
             system_enemy_spawner(world, self, ctx.window_size(), &mut tessellator);
             system_bullet_spawner(world, self, &mut tessellator);
             system_special_weapon_spawner(world, self, &mut tessellator);
-            system_movement(world, ctx.window_size());
-            system_lifespan(world, &mut tessellator);
+            system_movement(world, ctx.window_size(), dt);
+            system_lifespan(world, &mut tessellator, dt);
             system_collision(world, self);
             system_small_enemy_spawner(world, self, &mut tessellator);
 
-            self.current_frame += 1;
+            self.running_time += dt;
         }
 
-        system_rotate_visible_entities(world);
+        system_rotate_visible_entities(world, dt);
         system_remove_dead_entities(world);
 
         ctx.set_window_title(format!("Geometry Wars - Score: {}", self.score));
@@ -249,7 +251,7 @@ impl GeometryWars {
 
         eb.add_bundle((tag, transform, drawable, collider, physics, health, score));
 
-        self.last_enemy_spawn_time = self.current_frame;
+        self.last_enemy_spawn_time = self.running_time;
     }
 
     fn spawn_small_enemies(
@@ -259,11 +261,11 @@ impl GeometryWars {
         parent_shape: &PolygonShape,
         parent_physics: &Physics,
         parent_score: &Score,
-        lifespan: u32,
+        lifespan: Duration,
         tessellator: &mut Tessellator,
     ) {
         let position = parent_position;
-        let speed = parent_physics.velocity.x.abs();
+        let speed = parent_physics.velocity;
         let radius = parent_shape.radius / 2.0;
         let fill_color = parent_shape.fill_color;
         let outline_color = parent_shape.outline_color;
@@ -295,7 +297,7 @@ impl GeometryWars {
 
             let angle = offset_angle * i as f32 * (PI / 180.0);
             let mut physics = Physics::default();
-            physics.velocity = Vec2::new(speed * angle.cos(), speed * angle.sin());
+            physics.velocity = Vec2::new(speed.x.abs() * angle.cos(), speed.y.abs() * angle.sin());
 
             let lifespan = Lifespan {
                 total: lifespan,
@@ -343,10 +345,9 @@ impl GeometryWars {
         collider.radius = bullet_config.collision_radius as f32;
 
         let bullet_direction = (to - from).normalize_or_zero();
-        let bullet_speed = Vec2::new(bullet_config.speed, bullet_config.speed);
-        let bullet_velocity = bullet_direction * bullet_speed;
+        let bullet_speed = Vec2::new(bullet_config.speed, bullet_config.speed) * bullet_direction;
         let mut physics = Physics::default();
-        physics.velocity = bullet_velocity;
+        physics.velocity = bullet_speed;
 
         let lifespan = Lifespan {
             total: bullet_config.lifespan,
@@ -363,17 +364,17 @@ impl GeometryWars {
         parent_shape: &PolygonShape,
         tessellator: &mut Tessellator,
     ) {
-        let respawn_interval = 600;
-        if self.last_special_weapon_spawn_time + respawn_interval < self.current_frame {
+        let respawn_interval = Duration::from_secs_f32(10.0);
+        if self.last_special_weapon_spawn_time + respawn_interval < self.running_time {
             let position = parent_position;
-            let speed = 20.0;
+            let speed = 2500.0;
             let radius = parent_shape.radius / 2.0;
             let fill_color = parent_shape.fill_color;
             let outline_color = parent_shape.outline_color;
             let outline_thickness = parent_shape.outline_thickness;
             let entity_count = 18;
             let offset_angle = 360.0 / entity_count as f32;
-            let lifespan = 180;
+            let lifespan = Duration::from_secs_f32(1.5);
 
             for i in 0..entity_count {
                 let tag = Tag {
@@ -410,7 +411,7 @@ impl GeometryWars {
                 ebs.push(eb);
             }
 
-            self.last_special_weapon_spawn_time = self.current_frame;
+            self.last_special_weapon_spawn_time = self.running_time;
         }
     }
 }
@@ -443,8 +444,8 @@ struct EnemyConfig {
     outline_thicknes: u32,
     min_vertices: u32,
     max_vertices: u32,
-    small_lifespan: u32,
-    spawn_interval: u32,
+    small_lifespan: Duration,
+    spawn_interval: Duration,
 }
 
 #[derive(Debug, Default)]
@@ -456,7 +457,7 @@ struct BulletConfig {
     outline_color: Color,
     outline_thicknes: u32,
     vertices: u32,
-    lifespan: u32,
+    lifespan: Duration,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -493,8 +494,8 @@ pub struct Health {
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Lifespan {
-    total: u32,
-    remaining: u32,
+    total: Duration,
+    remaining: Duration,
 }
 
 fn system_user_input(
@@ -579,7 +580,7 @@ fn system_enemy_spawner(
     window_size: Vec2,
     tessellator: &mut Tessellator,
 ) {
-    if game.last_enemy_spawn_time + game.enemy_config.spawn_interval < game.current_frame {
+    if game.last_enemy_spawn_time + game.enemy_config.spawn_interval < game.running_time {
         let mut eb = EntityBuilder::new();
         game.spawn_enemy(&mut eb, window_size, tessellator);
         world.spawn(eb.build());
@@ -663,7 +664,7 @@ fn system_special_weapon_spawner(
     }
 }
 
-fn system_movement(world: &mut World, window_size: Vec2) {
+fn system_movement(world: &mut World, window_size: Vec2, dt: Duration) {
     for (_id, (transform, physics, drawable, input)) in
         world.query_mut::<(&mut Transform, &mut Physics, &Drawable, Option<&Input>)>()
     {
@@ -686,7 +687,7 @@ fn system_movement(world: &mut World, window_size: Vec2) {
 
             let move_dir = move_dir.normalize_or_zero();
 
-            future_pos = future_pos + (move_dir * physics.velocity); // TODO: * dt;
+            future_pos = future_pos + (move_dir * physics.velocity) * dt.as_secs_f32();
 
             if let Drawable::Polygon(shape) = drawable {
                 if future_pos.x - shape.radius < 0.0 {
@@ -703,24 +704,24 @@ fn system_movement(world: &mut World, window_size: Vec2) {
                 }
             }
         } else {
-            future_pos = future_pos + physics.velocity; // TODO: * dt;
+            future_pos = future_pos + physics.velocity * dt.as_secs_f32();
 
             if let Drawable::Polygon(shape) = drawable {
                 if future_pos.x - shape.radius < 0.0 {
-                    future_pos.x = shape.radius;
                     physics.velocity.x = -physics.velocity.x;
+                    future_pos.x = shape.radius;
                 }
                 if future_pos.x + shape.radius > window_size.x {
-                    future_pos.x = window_size.x - shape.radius;
                     physics.velocity.x = -physics.velocity.x;
+                    future_pos.x = window_size.x - shape.radius;
                 }
                 if future_pos.y - shape.radius < 0.0 {
-                    future_pos.y = shape.radius;
                     physics.velocity.y = -physics.velocity.y;
+                    future_pos.y = shape.radius;
                 }
                 if future_pos.y + shape.radius > window_size.y {
-                    future_pos.y = window_size.y - shape.radius;
                     physics.velocity.y = -physics.velocity.y;
+                    future_pos.y = window_size.y - shape.radius;
                 }
             }
         }
@@ -729,14 +730,14 @@ fn system_movement(world: &mut World, window_size: Vec2) {
     }
 }
 
-fn system_lifespan(world: &mut World, tessellator: &mut Tessellator) {
+fn system_lifespan(world: &mut World, tessellator: &mut Tessellator, dt: Duration) {
     for (_id, (lifespan, drawable, tag)) in
         world.query_mut::<(&mut Lifespan, &mut Drawable, &Tag)>()
     {
         if tag.name == SMALL_ENEMY_TAG || tag.name == BULLET_TAG || tag.name == SPECIAL_WEAPON_TAG {
-            lifespan.remaining -= 1;
-            if lifespan.remaining > 0 {
-                let alpha_ratio = lifespan.remaining as f32 / lifespan.total as f32;
+            lifespan.remaining = lifespan.remaining.saturating_sub(dt);
+            if lifespan.remaining > Duration::ZERO {
+                let alpha_ratio = lifespan.remaining.as_secs_f32() / lifespan.total.as_secs_f32();
 
                 if let Drawable::Polygon(shape) = drawable {
                     let new_alpha = 1.0 * alpha_ratio;
@@ -813,7 +814,7 @@ fn system_collision(world: &mut World, game: &mut GeometryWars) {
             world.query_one_mut::<(Option<&mut Lifespan>, Option<&mut Health>, Option<&Score>)>(id)
         {
             if let Some(lifespan) = lifespan {
-                lifespan.remaining = 0;
+                lifespan.remaining = Duration::ZERO;
             }
             if let Some(health) = health {
                 health.health = 0;
@@ -827,9 +828,9 @@ fn system_collision(world: &mut World, game: &mut GeometryWars) {
     game.score = total_score;
 }
 
-fn system_rotate_visible_entities(world: &mut World) {
+fn system_rotate_visible_entities(world: &mut World, dt: Duration) {
     for (_id, (transform,)) in world.query_mut::<With<(&mut Transform,), &Drawable>>() {
-        transform.rotation += 1.0;
+        transform.rotation += 60.0 * dt.as_secs_f32();
     }
 }
 
@@ -838,7 +839,7 @@ fn system_remove_dead_entities(world: &mut World) {
 
     for (id, (lifespan, health)) in world.query::<(Option<&Lifespan>, Option<&Health>)>().iter() {
         if let Some(lifespan) = lifespan {
-            if lifespan.remaining <= 0 {
+            if lifespan.remaining <= Duration::ZERO {
                 to_remove.insert(id);
             }
         }

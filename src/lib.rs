@@ -105,6 +105,7 @@ pub trait Game {
         input: &InputHelper,
         _ctx: &mut Context,
         _camera: &Camera,
+        _dt: Duration,
     ) -> bool {
         !input.quit()
     }
@@ -204,7 +205,8 @@ where
 
         //////////////////// UPDATE ////////////////////
         let input = InputHelper::new(&input_helper);
-        if !game.on_update(&mut world, &input, &mut ctx, &camera) {
+        let dt = Duration::from_secs_f32(1.0 / 60.0);
+        if !game.on_update(&mut world, &input, &mut ctx, &camera, dt) {
             *control_flow = ControlFlow::Exit;
             return;
         }
