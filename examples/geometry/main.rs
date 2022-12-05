@@ -17,10 +17,14 @@ fn main() {
 }
 
 #[derive(Default)]
-struct GeometryExample;
+struct GeometryExample {
+    world: World,
+}
 
 impl papercut::Game for GeometryExample {
-    fn on_create(&mut self, world: &mut World, _ctx: &mut Context) {
+    fn on_create(&mut self, _ctx: &mut Context) {
+        let mut world = World::new();
+
         let tolerance = 0.02;
         let mut tessellator = Tessellator::new(tolerance);
 
@@ -244,5 +248,22 @@ impl papercut::Game for GeometryExample {
         line.update(&mut tessellator);
         let drawable = Drawable::Line(line);
         world.spawn((transform, drawable));
+
+        self.world = world;
+    }
+
+    fn on_update(
+        &mut self,
+        scene: &mut papercut::Scene,
+        input: &papercut::input::InputHelper,
+        ctx: &mut Context,
+        _camera: &papercut::camera::Camera,
+        _dt: std::time::Duration,
+    ) -> bool {
+        for (_id, (transform, drawable)) in self.world.query::<(&Transform, &Drawable)>().iter() {
+            ctx.draw_shape(transform, drawable, scene);
+        }
+
+        !input.quit()
     }
 }

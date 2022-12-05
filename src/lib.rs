@@ -5,7 +5,6 @@ pub use env_logger::init as init_logger;
 use futures::executor::block_on;
 use glam::{Vec2, Vec4};
 use graphics::Color;
-use hecs::World;
 use input::InputHelper;
 use renderer::{Globals, GraphicsDevice, Renderer, Vertex};
 use wgpu::{
@@ -91,13 +90,68 @@ impl<'frame> Context {
     pub fn set_window_title(&mut self, title: impl Into<String>) {
         self.window_title = title.into();
     }
+
+    pub fn draw_shape(&self, transform: &Transform, drawable: &Drawable, scene: &mut Scene) {
+        let t = compute_transformation_matrix(&transform);
+        let index_offset = scene.vertices.len() as u16;
+        match drawable {
+            Drawable::Circle(circle) => {
+                for v in circle.vertices() {
+                    let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
+                    let color = v.color().to_array();
+                    let vertex = Vertex { position, color };
+                    scene.vertices.push(vertex);
+                }
+
+                for i in circle.indices() {
+                    scene.indices.push(index_offset + i);
+                }
+            }
+            Drawable::Line(line) => {
+                for v in line.vertices() {
+                    let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
+                    let color = v.color().to_array();
+                    let vertex = Vertex { position, color };
+                    scene.vertices.push(vertex);
+                }
+
+                for i in line.indices() {
+                    scene.indices.push(index_offset + i);
+                }
+            }
+            Drawable::Polygon(polygon) => {
+                for v in polygon.vertices() {
+                    let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
+                    let color = v.color().to_array();
+                    let vertex = Vertex { position, color };
+                    scene.vertices.push(vertex);
+                }
+
+                for i in polygon.indices() {
+                    scene.indices.push(index_offset + i);
+                }
+            }
+            Drawable::Rect(rect) => {
+                for v in rect.vertices() {
+                    let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
+                    let color = v.color().to_array();
+                    let vertex = Vertex { position, color };
+                    scene.vertices.push(vertex);
+                }
+
+                for i in rect.indices() {
+                    scene.indices.push(index_offset + i);
+                }
+            }
+        }
+    }
 }
 
 pub trait Game {
-    fn on_create(&mut self, _world: &mut World, _ctx: &mut Context) {}
+    fn on_create(&mut self, _ctx: &mut Context) {}
     fn on_update(
         &mut self,
-        _world: &mut World,
+        _scene: &mut Scene,
         input: &InputHelper,
         _ctx: &mut Context,
         _camera: &Camera,
@@ -159,17 +213,16 @@ where
         sample_count,
         renderer_config.clear_color,
     );
+    let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
     let mut input_helper = WinitInputHelper::new();
-    let mut world = World::new();
-    let mut camera = Camera::new(device.size.width as f32, device.size.height as f32);
 
     let mut ctx = Context {
         window_title: window_config.title,
         window_size: window_config.size,
     };
 
-    game.on_create(&mut world, &mut ctx);
+    game.on_create(&mut ctx);
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
@@ -181,7 +234,32 @@ where
     window.request_redraw();
     window.set_visible(true);
 
+    let mut t = Instant::now();
+    let dt = Duration::from_secs_f32(1.0 / 100.0);
+    let mut current_time = Instant::now();
+    let mut accumulator = Duration::ZERO;
+    let mut new_frame = true;
+
     event_loop.run(move |event, _, control_flow| {
+        if new_frame {
+            let new_time = Instant::now();
+            let mut frame_time = new_time.saturating_duration_since(current_time);
+            if frame_time > Duration::from_secs_f32(1.0 / 40.0) {
+                // If the frame rate dropped below 40 FPS, cap duration at 40 FPS.
+                frame_time = Duration::from_secs_f32(1.0 / 40.0);
+            }
+            println!(
+                "Frame time: {} (dt: {})",
+                frame_time.as_secs_f32(),
+                dt.as_secs_f32()
+            );
+            current_time = new_time;
+
+            accumulator += frame_time;
+
+            new_frame = false;
+        }
+
         control_flow.set_poll();
 
         //////////////////// INPUT ////////////////////
@@ -200,78 +278,23 @@ where
         }
 
         //////////////////// UPDATE ////////////////////
+        let mut scene = Scene::default();
         let input = InputHelper::new(&input_helper);
-        let dt = Duration::from_secs_f32(1.0 / 60.0);
-        if !game.on_update(&mut world, &input, &mut ctx, &camera, dt) {
-            control_flow.set_exit();
-            return;
+        while accumulator >= dt {
+            if !game.on_update(&mut scene, &input, &mut ctx, &camera, dt) {
+                control_flow.set_exit();
+                return;
+            }
+            t += dt;
+            accumulator = accumulator.saturating_sub(dt);
+            update_count += 1;
         }
-
-        update_count += 1;
 
         //////////////////// RENDER ////////////////////
         // TODO: Timing if not using vSync (which we are currently).
-        let mut vertices = Vec::with_capacity(renderer.max_geometry_vertices); // TODO: set a capacity and draw when reached.
-        let mut indices = Vec::with_capacity(renderer.max_geometry_indices); // TODO: set a capacity and draw when reached.
-
-        for (_id, (transform, drawable)) in world.query::<(&Transform, &Drawable)>().iter() {
-            let t = compute_transformation_matrix(&transform);
-            let index_offset = vertices.len() as u16;
-            match drawable {
-                Drawable::Circle(circle) => {
-                    for v in circle.vertices() {
-                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
-                        let color = v.color().to_array();
-                        let vertex = Vertex { position, color };
-                        vertices.push(vertex);
-                    }
-
-                    for i in circle.indices() {
-                        indices.push(index_offset + i);
-                    }
-                }
-                Drawable::Line(line) => {
-                    for v in line.vertices() {
-                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
-                        let color = v.color().to_array();
-                        let vertex = Vertex { position, color };
-                        vertices.push(vertex);
-                    }
-
-                    for i in line.indices() {
-                        indices.push(index_offset + i);
-                    }
-                }
-                Drawable::Polygon(polygon) => {
-                    for v in polygon.vertices() {
-                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
-                        let color = v.color().to_array();
-                        let vertex = Vertex { position, color };
-                        vertices.push(vertex);
-                    }
-
-                    for i in polygon.indices() {
-                        indices.push(index_offset + i);
-                    }
-                }
-                Drawable::Rect(rect) => {
-                    for v in rect.vertices() {
-                        let position = (t * Vec4::from((v.position(), 0.0, 1.0))).to_array();
-                        let color = v.color().to_array();
-                        let vertex = Vertex { position, color };
-                        vertices.push(vertex);
-                    }
-
-                    for i in rect.indices() {
-                        indices.push(index_offset + i);
-                    }
-                }
-            }
-        }
-
-        let unaligned_indices_len = indices.len();
+        let unaligned_indices_len = scene.indices.len();
         for _ in 0..(unaligned_indices_len % COPY_BUFFER_ALIGNMENT as usize) {
-            indices.push(0);
+            scene.indices.push(0);
         }
 
         let globals = Globals {
@@ -299,20 +322,24 @@ where
 
         let vertex_buffer = device.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("frame geometry vbo"),
-            contents: bytemuck::cast_slice(&vertices),
+            contents: bytemuck::cast_slice(&scene.vertices),
             usage: BufferUsages::COPY_SRC,
         });
 
         let index_buffer = device.device.create_buffer_init(&BufferInitDescriptor {
             label: Some("frame geometry ibo"),
-            contents: bytemuck::cast_slice(&indices),
+            contents: bytemuck::cast_slice(&scene.indices),
             usage: BufferUsages::COPY_SRC,
         });
 
-        if vertices.len() > renderer.max_geometry_vertices
-            || indices.len() > renderer.max_geometry_indices
+        if scene.vertices.len() > renderer.max_geometry_vertices
+            || scene.indices.len() > renderer.max_geometry_indices
         {
-            renderer.resize_geometry_buffers(&device.device, vertices.len(), indices.len())
+            renderer.resize_geometry_buffers(
+                &device.device,
+                scene.vertices.len(),
+                scene.indices.len(),
+            )
         }
 
         encoder.copy_buffer_to_buffer(
@@ -320,7 +347,7 @@ where
             0,
             &renderer.geometry_vbo,
             0,
-            (std::mem::size_of::<Vertex>() * vertices.len()) as BufferAddress,
+            (std::mem::size_of::<Vertex>() * scene.vertices.len()) as BufferAddress,
         );
 
         encoder.copy_buffer_to_buffer(
@@ -328,7 +355,7 @@ where
             0,
             &renderer.geometry_ibo,
             0,
-            (std::mem::size_of::<u16>() * indices.len()) as BufferAddress,
+            (std::mem::size_of::<u16>() * scene.indices.len()) as BufferAddress,
         );
 
         let render_target = frame
@@ -404,5 +431,22 @@ where
             "{} | FPS: {}, UPS: {}",
             ctx.window_title, fps, ups
         ));
+
+        new_frame = true;
     });
+}
+
+#[derive(Debug)]
+pub struct Scene {
+    vertices: Vec<Vertex>,
+    indices: Vec<u16>,
+}
+
+impl Default for Scene {
+    fn default() -> Self {
+        let vertices = Vec::new();
+        let indices = Vec::new();
+
+        Self { vertices, indices }
+    }
 }

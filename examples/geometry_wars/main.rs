@@ -11,7 +11,7 @@ use papercut::{
     components::{Drawable, Tag, Transform},
     graphics::{Color, Geometry, PolygonShape, Tessellator},
     input::{InputHelper, KeyCode, MouseButton},
-    Context, Game, RendererConfig, WindowConfig,
+    Context, Game, RendererConfig, Scene, WindowConfig,
 };
 use rand::{thread_rng, Rng};
 
@@ -49,10 +49,11 @@ struct GeometryWars {
     player_config: PlayerConfig,
     enemy_config: EnemyConfig,
     bullet_config: BulletConfig,
+    world: Option<World>,
 }
 
 impl Game for GeometryWars {
-    fn on_create(&mut self, world: &mut World, ctx: &mut Context) {
+    fn on_create(&mut self, ctx: &mut Context) {
         let font_config = FontConfig {
             file: String::from("fonts/arial.ttf"),
             size: 24,
@@ -100,39 +101,50 @@ impl Game for GeometryWars {
         let mut tessellator = Tessellator::new(0.02);
         let mut eb = EntityBuilder::new();
         self.spawn_player(&mut eb, ctx.window_size(), &mut tessellator);
+
+        let mut world = World::new();
         world.spawn(eb.build());
+        self.world = Some(world);
 
         self.running = true;
     }
 
     fn on_update(
         &mut self,
-        world: &mut World,
+        scene: &mut Scene,
         input: &InputHelper,
         ctx: &mut Context,
         camera: &Camera,
         dt: Duration,
     ) -> bool {
-        let mut tessellator = Tessellator::new(0.02);
-        system_user_input(self, world, input, camera);
+        let mut world = self.world.take();
 
-        if !self.paused {
-            system_player_spawner(world, self, ctx.window_size(), &mut tessellator);
-            system_enemy_spawner(world, self, ctx.window_size(), &mut tessellator);
-            system_bullet_spawner(world, self, &mut tessellator);
-            system_special_weapon_spawner(world, self, &mut tessellator);
-            system_movement(world, ctx.window_size(), dt);
-            system_lifespan(world, &mut tessellator, dt);
-            system_collision(world, self);
-            system_small_enemy_spawner(world, self, &mut tessellator);
+        if let Some(world) = &mut world {
+            // TODO: Add dirty flag to shape/drawable and move tesselator behind the scenes.
+            let mut tessellator = Tessellator::new(0.02);
+            system_user_input(self, world, input, camera);
 
-            self.running_time += dt;
+            if !self.paused {
+                system_player_spawner(world, self, ctx.window_size(), &mut tessellator);
+                system_enemy_spawner(world, self, ctx.window_size(), &mut tessellator);
+                system_bullet_spawner(world, self, &mut tessellator);
+                system_special_weapon_spawner(world, self, &mut tessellator);
+                system_movement(world, ctx.window_size(), dt);
+                system_lifespan(world, &mut tessellator, dt);
+                system_collision(world, self);
+                system_small_enemy_spawner(world, self, &mut tessellator);
+
+                self.running_time += dt;
+            }
+
+            system_rotate_visible_entities(world, dt);
+            system_remove_dead_entities(world);
+            system_render(world, ctx, scene);
+
+            ctx.set_window_title(format!("Geometry Wars - Score: {}", self.score));
         }
 
-        system_rotate_visible_entities(world, dt);
-        system_remove_dead_entities(world);
-
-        ctx.set_window_title(format!("Geometry Wars - Score: {}", self.score));
+        self.world = world;
 
         self.running
     }
@@ -852,6 +864,12 @@ fn system_remove_dead_entities(world: &mut World) {
 
     for entity in to_remove.into_iter() {
         world.despawn(entity).expect("TODO: error handling");
+    }
+}
+
+fn system_render(world: &mut World, ctx: &mut Context, scene: &mut Scene) {
+    for (_id, (transform, drawable)) in world.query::<(&Transform, &Drawable)>().iter() {
+        ctx.draw_shape(transform, drawable, scene);
     }
 }
 
