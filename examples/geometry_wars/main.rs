@@ -104,7 +104,6 @@ impl Game for GeometryWars {
 
     fn on_update(
         &mut self,
-        scene: &mut Scene,
         input: &InputHelper,
         ctx: &mut Context,
         camera: &Camera,
@@ -129,11 +128,14 @@ impl Game for GeometryWars {
 
         self.system_rotate_visible_entities(dt);
         self.system_remove_dead_entities();
-        self.system_render(ctx, scene);
 
         ctx.set_window_title(format!("Geometry Wars - Score: {}", self.score));
 
         self.running
+    }
+
+    fn on_render(&self, scene: &mut papercut::Scene, ctx: &mut Context) {
+        self.system_render(ctx, scene);
     }
 }
 
@@ -500,7 +502,7 @@ impl GeometryWars {
         }
     }
 
-    fn system_render(&mut self, ctx: &mut Context, scene: &mut Scene) {
+    fn system_render(&self, ctx: &mut Context, scene: &mut Scene) {
         for (_id, (transform, drawable)) in self.world.query::<(&Transform, &Drawable)>().iter() {
             ctx.draw_shape(transform, drawable, scene);
         }

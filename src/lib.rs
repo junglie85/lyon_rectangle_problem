@@ -151,7 +151,6 @@ pub trait Game {
     fn on_create(&mut self) {}
     fn on_update(
         &mut self,
-        _scene: &mut Scene,
         input: &InputHelper,
         _ctx: &mut Context,
         _camera: &Camera,
@@ -159,6 +158,7 @@ pub trait Game {
     ) -> bool {
         !input.quit()
     }
+    fn on_render(&self, _scene: &mut Scene, _ctx: &mut Context) {}
 }
 
 pub fn start<G>(mut window_config: WindowConfig, renderer_config: RendererConfig)
@@ -223,7 +223,6 @@ where
     let mut game = G::default();
     game.on_create();
 
-    // window.request_redraw();
     window.set_visible(true);
 
     let mut t = Instant::now();
@@ -247,13 +246,8 @@ where
                 // If the frame rate dropped below 40 FPS, cap duration at 40 FPS.
                 frame_time = Duration::from_secs_f32(1.0 / 40.0);
             }
-            // println!(
-            //     "Frame time: {} (dt: {})",
-            //     frame_time.as_secs_f32(),
-            //     dt.as_secs_f32()
-            // );
-            last_frame = this_frame;
 
+            last_frame = this_frame;
             accumulator += frame_time;
 
             new_frame = false;
@@ -280,7 +274,7 @@ where
         let mut scene = Scene::default();
         let input = InputHelper::new(&input_helper);
         while accumulator >= dt {
-            if !game.on_update(&mut scene, &input, &mut ctx, &camera, dt) {
+            if !game.on_update(&input, &mut ctx, &camera, dt) {
                 control_flow.set_exit();
                 return;
             }
@@ -291,6 +285,8 @@ where
 
         //////////////////// RENDER ////////////////////
         // TODO: Timing if not using vSync (which we are currently).
+        game.on_render(&mut scene, &mut ctx);
+
         let unaligned_indices_len = scene.indices.len();
         for _ in 0..(unaligned_indices_len % COPY_BUFFER_ALIGNMENT as usize) {
             scene.indices.push(0);
@@ -415,7 +411,6 @@ where
 
         device.queue.submit(Some(encoder.finish()));
         frame.present();
-        // window.request_redraw();
 
         frame_count += 1;
         let now = Instant::now();

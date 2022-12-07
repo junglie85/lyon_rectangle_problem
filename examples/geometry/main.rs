@@ -5,11 +5,13 @@ use papercut::{
     graphics::{
         CircleShape, Color, Geometry, LineShape, PolygonShape, RectangleShape, Tessellator,
     },
-    Context, RendererConfig, WindowConfig,
+    input::KeyCode,
+    Context, Fullscreen, RendererConfig, Scene, WindowConfig,
 };
 
 fn main() {
-    let wc = WindowConfig::default();
+    let mut wc = WindowConfig::default();
+    wc.fullscreen = None;
     let rc = RendererConfig::default();
 
     papercut::init_logger();
@@ -254,16 +256,17 @@ impl papercut::Game for GeometryExample {
 
     fn on_update(
         &mut self,
-        scene: &mut papercut::Scene,
         input: &papercut::input::InputHelper,
-        ctx: &mut Context,
+        _ctx: &mut Context,
         _camera: &papercut::camera::Camera,
         _dt: std::time::Duration,
     ) -> bool {
+        !input.quit() && !input.key_pressed(KeyCode::Escape)
+    }
+
+    fn on_render(&self, scene: &mut Scene, ctx: &mut Context) {
         for (_id, (transform, drawable)) in self.world.query::<(&Transform, &Drawable)>().iter() {
             ctx.draw_shape(transform, drawable, scene);
         }
-
-        !input.quit()
     }
 }
