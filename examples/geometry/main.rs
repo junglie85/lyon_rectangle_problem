@@ -22,7 +22,7 @@ struct GeometryExample {
 }
 
 impl papercut::Game for GeometryExample {
-    fn on_create(&mut self, _ctx: &mut Context) {
+    fn on_create(&mut self) {
         let mut world = World::new();
 
         let tolerance = 0.02;

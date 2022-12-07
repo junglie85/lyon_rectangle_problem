@@ -148,7 +148,7 @@ impl<'frame> Context {
 }
 
 pub trait Game {
-    fn on_create(&mut self, _ctx: &mut Context) {}
+    fn on_create(&mut self) {}
     fn on_update(
         &mut self,
         _scene: &mut Scene,
@@ -165,8 +165,6 @@ pub fn start<G>(mut window_config: WindowConfig, renderer_config: RendererConfig
 where
     G: Game + Default + 'static,
 {
-    let mut game = G::default();
-
     let event_loop = EventLoop::new();
 
     let monitor = event_loop
@@ -222,7 +220,17 @@ where
         window_size: window_config.size,
     };
 
-    game.on_create(&mut ctx);
+    let mut game = G::default();
+    game.on_create();
+
+    // window.request_redraw();
+    window.set_visible(true);
+
+    let mut t = Instant::now();
+    let dt = Duration::from_secs_f32(1.0 / 100.0);
+    let mut last_frame = Instant::now();
+    let mut accumulator = Duration::ZERO;
+    let mut new_frame = true;
 
     let start = Instant::now();
     let mut next_report = start + Duration::from_secs(1);
@@ -231,29 +239,20 @@ where
     let mut update_count: u32 = 0;
     let mut ups = 0_u32;
 
-    window.request_redraw();
-    window.set_visible(true);
-
-    let mut t = Instant::now();
-    let dt = Duration::from_secs_f32(1.0 / 100.0);
-    let mut current_time = Instant::now();
-    let mut accumulator = Duration::ZERO;
-    let mut new_frame = true;
-
     event_loop.run(move |event, _, control_flow| {
         if new_frame {
-            let new_time = Instant::now();
-            let mut frame_time = new_time.saturating_duration_since(current_time);
+            let this_frame = Instant::now();
+            let mut frame_time = this_frame.saturating_duration_since(last_frame);
             if frame_time > Duration::from_secs_f32(1.0 / 40.0) {
                 // If the frame rate dropped below 40 FPS, cap duration at 40 FPS.
                 frame_time = Duration::from_secs_f32(1.0 / 40.0);
             }
-            println!(
-                "Frame time: {} (dt: {})",
-                frame_time.as_secs_f32(),
-                dt.as_secs_f32()
-            );
-            current_time = new_time;
+            // println!(
+            //     "Frame time: {} (dt: {})",
+            //     frame_time.as_secs_f32(),
+            //     dt.as_secs_f32()
+            // );
+            last_frame = this_frame;
 
             accumulator += frame_time;
 
@@ -416,7 +415,7 @@ where
 
         device.queue.submit(Some(encoder.finish()));
         frame.present();
-        window.request_redraw();
+        // window.request_redraw();
 
         frame_count += 1;
         let now = Instant::now();
